@@ -30,8 +30,6 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-
-using System;
 using System.ComponentModel.Design.Serialization;
 using Xunit;
 
@@ -83,7 +81,7 @@ namespace System.ComponentModel.Tests
             ArgumentNullException ex = Assert.Throws<ArgumentNullException>(() => stack.Append(null));
             Assert.Equal(typeof(ArgumentNullException), ex.GetType());
             Assert.Null(ex.InnerException);
-            if (!PlatformDetection.IsNetNative) // .Net Native toolchain optimizes away exception messages and paramnames.
+            if (!PlatformDetection.IsNetNative) // .NET Native toolchain optimizes away exception messages and paramnames.
             {
                 Assert.NotNull(ex.Message);
                 Assert.Equal("context", ex.ParamName);
@@ -121,7 +119,7 @@ namespace System.ComponentModel.Tests
             ex = Assert.Throws<ArgumentOutOfRangeException>(() => stack[-1]);
             Assert.Equal(typeof(ArgumentOutOfRangeException), ex.GetType());
             Assert.Null(ex.InnerException);
-            if (!PlatformDetection.IsNetNative) // .Net Native toolchain optimizes away exception messages and paramnames.
+            if (!PlatformDetection.IsNetNative) // .NET Native toolchain optimizes away exception messages and paramnames.
             {
                 Assert.Equal(new ArgumentOutOfRangeException("level").Message, ex.Message);
                 Assert.Equal("level", ex.ParamName);
@@ -131,7 +129,7 @@ namespace System.ComponentModel.Tests
             ex = Assert.Throws<ArgumentOutOfRangeException>(() => stack[-5]);
             Assert.Equal(typeof(ArgumentOutOfRangeException), ex.GetType());
             Assert.Null(ex.InnerException);
-            if (!PlatformDetection.IsNetNative) // .Net Native toolchain optimizes away exception messages and paramnames.
+            if (!PlatformDetection.IsNetNative) // .NET Native toolchain optimizes away exception messages and paramnames.
             {
                 Assert.Equal(new ArgumentOutOfRangeException("level").Message, ex.Message);
                 Assert.Equal("level", ex.ParamName);
@@ -165,7 +163,7 @@ namespace System.ComponentModel.Tests
             ArgumentNullException ex = Assert.Throws<ArgumentNullException>(() => stack[(Type)null]);
             Assert.Equal(typeof(ArgumentNullException), ex.GetType());
             Assert.Null(ex.InnerException);
-            if (!PlatformDetection.IsNetNative) // .Net Native toolchain optimizes away exception messages and paramnames.
+            if (!PlatformDetection.IsNetNative) // .NET Native toolchain optimizes away exception messages and paramnames.
             {
                 Assert.NotNull(ex.Message);
                 Assert.Equal("type", ex.ParamName);
@@ -179,11 +177,27 @@ namespace System.ComponentModel.Tests
             ArgumentNullException ex= Assert.Throws<ArgumentNullException>(()=> stack.Push(null));
             Assert.Equal(typeof(ArgumentNullException), ex.GetType());
             Assert.Null(ex.InnerException);
-            if (!PlatformDetection.IsNetNative) // .Net Native toolchain optimizes away exception messages and paramnames.
+            if (!PlatformDetection.IsNetNative) // .NET Native toolchain optimizes away exception messages and paramnames.
             {
                 Assert.NotNull(ex.Message);
                 Assert.Equal("context", ex.ParamName);
             }
+        }
+
+        [Fact]
+        public void Append_NoItems_Success()
+        {
+            var stack = new ContextStack();
+            stack.Append("value");
+            Assert.Equal("value", stack[0]);
+        }
+
+        [Fact]
+        public void Indexer_GetWithoutItems_ReturnsNull()
+        {
+            var stack = new ContextStack();
+            Assert.Null(stack[1]);
+            Assert.Null(stack[typeof(int)]);
         }
 
         public interface IFoo

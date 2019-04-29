@@ -5,7 +5,8 @@
 using System.Buffers;
 using System.Diagnostics;
 using System.IO;
-
+using System.Runtime.InteropServices;
+using System.Security.Cryptography.Asn1;
 using Microsoft.Win32.SafeHandles;
 using Internal.Cryptography;
 
@@ -70,15 +71,12 @@ namespace System.Security.Cryptography
         {
             get
             {
-                // OpenSSL seems to accept answers of all sizes.
-                // Choosing a non-multiple of 8 would make some calculations misalign
-                // (like assertions of (output.Length * 8) == KeySize).
-                // Choosing a number too small is insecure.
-                // Choosing a number too large will cause GenerateKey to take much
-                // longer than anyone would be willing to wait.
+                // While OpenSSL 1.0.x and 1.1.0 will generate RSA-384 keys,
+                // OpenSSL 1.1.1 has lifted the minimum to RSA-512.
                 //
-                // So, copying the values from RSACryptoServiceProvider
-                return new[] { new KeySizes(384, 16384, 8) };
+                // Rather than make the matrix even more complicated,
+                // the low limit now is 512 on all OpenSSL-based RSA.
+                return new[] { new KeySizes(512, 16384, 8) };
             }
         }
 
@@ -131,6 +129,54 @@ namespace System.Security.Cryptography
             Interop.Crypto.RsaPadding rsaPadding = GetInteropPadding(padding, out RsaPaddingProcessor oaepProcessor);
             SafeRsaHandle key = _key.Value;
             CheckInvalidKey(key);
+
+            int keySizeBytes = Interop.Crypto.RsaSize(key);
+
+            // OpenSSL does not take a length value for the destination, so it can write out of bounds.
+            // To prevent the OOB write, decrypt into a temporary buffer.
+            if (destination.Length < keySizeBytes)
+            {
+                Span<byte> tmp = stackalloc byte[0];
+                byte[] rent = null;
+
+                // RSA up through 4096 stackalloc
+                if (keySizeBytes <= 512)
+                {
+                    tmp = stackalloc byte[keySizeBytes];
+                }
+                else
+                {
+                    rent = ArrayPool<byte>.Shared.Rent(keySizeBytes);
+                    tmp = rent;
+                }
+
+                bool ret = TryDecrypt(key, data, tmp, rsaPadding, oaepProcessor, out bytesWritten);
+
+                if (ret)
+                {
+                    tmp = tmp.Slice(0, bytesWritten);
+
+                    if (bytesWritten > destination.Length)
+                    {
+                        ret = false;
+                        bytesWritten = 0;
+                    }
+                    else
+                    {
+                        tmp.CopyTo(destination);
+                    }
+
+                    CryptographicOperations.ZeroMemory(tmp);
+                }
+
+                if (rent != null)
+                {
+                    // Already cleared
+                    ArrayPool<byte>.Shared.Return(rent);
+                }
+
+                return ret;
+            }
 
             return TryDecrypt(key, data, destination, rsaPadding, oaepProcessor, out bytesWritten);
         }
@@ -355,7 +401,7 @@ namespace System.Security.Cryptography
 
             try
             {
-                Interop.Crypto.SetRsaParameters(
+                if (!Interop.Crypto.SetRsaParameters(
                     key,
                     parameters.Modulus,
                     parameters.Modulus != null ? parameters.Modulus.Length : 0,
@@ -372,7 +418,10 @@ namespace System.Security.Cryptography
                     parameters.DQ, 
                     parameters.DQ != null ? parameters.DQ.Length : 0,
                     parameters.InverseQ,
-                    parameters.InverseQ != null ? parameters.InverseQ.Length : 0);
+                    parameters.InverseQ != null ? parameters.InverseQ.Length : 0))
+                {
+                    throw Interop.Crypto.CreateOpenSslCryptographicException();
+                }
 
                 imported = true;
             }
@@ -390,6 +439,31 @@ namespace System.Security.Cryptography
             // Use ForceSet instead of the property setter to ensure that LegalKeySizes doesn't interfere
             // with the already loaded key.
             ForceSetKeySize(BitsPerByte * Interop.Crypto.RsaSize(key));
+        }
+
+        public override unsafe void ImportRSAPublicKey(ReadOnlySpan<byte> source, out int bytesRead)
+        {
+            fixed (byte* ptr = &MemoryMarshal.GetReference(source))
+            {
+                using (MemoryManager<byte> manager = new PointerMemoryManager<byte>(ptr, source.Length))
+                {
+                    AsnReader reader = new AsnReader(manager.Memory, AsnEncodingRules.BER);
+                    ReadOnlyMemory<byte> firstElement = reader.PeekEncodedValue();
+
+                    SafeRsaHandle key = Interop.Crypto.DecodeRsaPublicKey(firstElement.Span);
+
+                    Interop.Crypto.CheckValidOpenSslHandle(key);
+
+                    FreeKey();
+                    _key = new Lazy<SafeRsaHandle>(key);
+
+                    // Use ForceSet instead of the property setter to ensure that LegalKeySizes doesn't interfere
+                    // with the already loaded key.
+                    ForceSetKeySize(BitsPerByte * Interop.Crypto.RsaSize(key));
+
+                    bytesRead = firstElement.Length;
+                }
+            }
         }
 
         protected override void Dispose(bool disposing)
@@ -694,7 +768,7 @@ namespace System.Security.Cryptography
             {
                 int algorithmNid = GetAlgorithmNid(hashAlgorithm);
                 SafeRsaHandle rsa = _key.Value;
-                return Interop.Crypto.RsaVerify(algorithmNid, hash, hash.Length, signature, signature.Length, rsa);
+                return Interop.Crypto.RsaVerify(algorithmNid, hash, signature, rsa);
             }
             else if (padding == RSASignaturePadding.Pss)
             {
@@ -748,6 +822,7 @@ namespace System.Security.Cryptography
 
             if (nid == Interop.Crypto.NID_undef)
             {
+                Interop.Crypto.ErrClearError();
                 throw new CryptographicException(SR.Cryptography_UnknownHashAlgorithm, hashAlgorithmName.Name);
             }
 

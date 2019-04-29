@@ -305,7 +305,7 @@ namespace System.Xml
                 }
                 else
                 {
-                    Debug.Assert(false, "Expected currentState <= State.Error ");
+                    Debug.Fail("Expected currentState <= State.Error ");
                     return WriteState.Error;
                 }
             }
@@ -672,7 +672,7 @@ namespace System.Xml
                         {
                             throw new ArgumentException(SR.Xml_XmlnsPrefix);
                         }
-                        _curDeclPrefix = String.Empty;
+                        _curDeclPrefix = string.Empty;
                         SetSpecialAttribute(SpecialAttribute.DefaultXmlns);
                         goto SkipPushAndWrite;
                     }
@@ -991,7 +991,7 @@ namespace System.Xml
         {
             try
             {
-                if (Char.IsSurrogate(ch))
+                if (char.IsSurrogate(ch))
                 {
                     throw new ArgumentException(SR.Xml_InvalidSurrogateMissingLowChar);
                 }
@@ -1017,7 +1017,7 @@ namespace System.Xml
         {
             try
             {
-                if (!Char.IsSurrogatePair(highChar, lowChar))
+                if (!char.IsSurrogatePair(highChar, lowChar))
                 {
                     throw XmlConvert.CreateInvalidSurrogatePairException(lowChar, highChar);
                 }
@@ -1364,7 +1364,7 @@ namespace System.Xml
                 CheckNCName(localName);
 
                 AdvanceState(Token.Text);
-                string prefix = String.Empty;
+                string prefix = string.Empty;
                 if (ns != null && ns.Length != 0)
                 {
                     prefix = LookupPrefix(ns);
@@ -1614,7 +1614,7 @@ namespace System.Xml
             else if (State.RootLevelAttr == _currentState)
                 _currentState = State.RootLevelSpecAttr;
             else
-                Debug.Assert(false, "State.Attribute == currentState || State.RootLevelAttr == currentState");
+                Debug.Fail("State.Attribute == currentState || State.RootLevelAttr == currentState");
 
             if (_attrValueCache == null)
             {
@@ -2041,7 +2041,7 @@ namespace System.Xml
                         break;
 
                     default:
-                        Debug.Assert(false, "We should not get to this point.");
+                        Debug.Fail("We should not get to this point.");
                         break;
                 }
             }
@@ -2071,7 +2071,7 @@ namespace System.Xml
         {
             if (state >= State.Error)
             {
-                Debug.Assert(false, "We should never get to this point. State = " + state);
+                Debug.Fail("We should never get to this point. State = " + state);
                 return "Error";
             }
             else

@@ -145,12 +145,30 @@ public static partial class XmlSerializerTests
         Assert.StrictEqual(SerializeAndDeserialize<float>((float)2.3,
 @"<?xml version=""1.0""?>
 <float>2.3</float>"), (float)2.3);
+    }
+
+    [Fact]
+    [SkipOnTargetFramework(~TargetFrameworkMonikers.NetFramework)]
+    public static void Xml_FloatAsRoot_NetFramework()
+    {
         Assert.StrictEqual(SerializeAndDeserialize<float>(float.MinValue,
 @"<?xml version=""1.0""?>
 <float>-3.40282347E+38</float>"), float.MinValue);
         Assert.StrictEqual(SerializeAndDeserialize<float>(float.MaxValue,
 @"<?xml version=""1.0""?>
 <float>3.40282347E+38</float>"), float.MaxValue);
+    }
+
+    [Fact]
+    [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework)]
+    public static void Xml_FloatAsRoot_NotNetFramework()
+    {
+        Assert.StrictEqual(SerializeAndDeserialize<float>(float.MinValue,
+@"<?xml version=""1.0""?>
+<float>-3.4028235E+38</float>"), float.MinValue);
+        Assert.StrictEqual(SerializeAndDeserialize<float>(float.MaxValue,
+@"<?xml version=""1.0""?>
+<float>3.4028235E+38</float>"), float.MaxValue);
     }
 
     [Fact]
@@ -2951,5 +2969,23 @@ public static partial class XmlSerializerTests
         string baseline = "<?xml version=\"1.0\"?>\r\n<xs:schema xmlns:tns=\"http://microsoft.com/wsdl/types/\" elementFormDefault=\"qualified\" targetNamespace=\"http://microsoft.com/wsdl/types/\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\r\n  <xs:simpleType name=\"TimeSpan\">\r\n    <xs:restriction base=\"xs:duration\" />\r\n  </xs:simpleType>\r\n</xs:schema>";
         Assert.True(element.LastAttribute.Value == expectedAttribute, string.Format("{0}Test failed for wrong output from schema: {0}Expected Output: {1}{0}Actual Output: {2}",
                 Environment.NewLine, baseline, actualOutput));
+    }
+
+    [Fact]
+    [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #31427")]
+    public static void SerializeXmlTextAttributeOnDerivedClass()
+    {
+        var value = new EnumTestDerived() { Test = TestEnum.On };
+        var actual = SerializeAndDeserialize(value, "<?xml version=\"1.0\"?><EnumTestDerived xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">On</EnumTestDerived>");
+        Assert.Equal(value.Test, actual.Test);
+    }
+
+    [Fact]
+    [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #31427")]
+    public static void SerializePrimitiveXmlTextAttributeOnDerivedClass()
+    {
+        var value = new PrimiveAttributeTestDerived() { Number = 5 };
+        var actual = SerializeAndDeserialize(value, "<?xml version=\"1.0\"?><PrimiveAttributeTestDerived xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">5</PrimiveAttributeTestDerived>");
+        Assert.Equal(value.Number, actual.Number);
     }
 }

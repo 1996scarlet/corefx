@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel.Composition.Primitives;
 using System.Diagnostics;
-using System.Diagnostics.Contracts;
 using System.Linq;
 using System.Threading;
 using Microsoft.Internal.Collections;
@@ -49,7 +48,7 @@ namespace System.ComponentModel.Composition.Hosting
                     ExportProvider provider = providers[i];
                     if (provider == null)
                     {
-                        throw ExceptionBuilder.CreateContainsNullElement("providers");
+                        throw ExceptionBuilder.CreateContainsNullElement(nameof(providers));
                     }
 
                     copiedProviders[i] = provider;
@@ -60,7 +59,7 @@ namespace System.ComponentModel.Composition.Hosting
             }
             else
             {
-                copiedProviders = new ExportProvider[] { };
+                copiedProviders = Array.Empty<ExportProvider>();
             }
 
             _providers = copiedProviders;
@@ -103,10 +102,7 @@ namespace System.ComponentModel.Composition.Hosting
         {
             if (disposing)
             {
-                // NOTE : According to http://msdn.microsoft.com/en-us/library/4bw5ewxy.aspx, the warning is bogus when used with Interlocked API.
-#pragma warning disable 420
                 if (Interlocked.CompareExchange(ref _isDisposed, 1, 0) == 0)
-#pragma warning restore 420
                 {
                     foreach (ExportProvider provider in _providers)
                     {
@@ -132,7 +128,7 @@ namespace System.ComponentModel.Composition.Hosting
             get
             {
                 ThrowIfDisposed();
-                Contract.Ensures(Contract.Result<ReadOnlyCollection<ExportProvider>>() != null);
+                Debug.Assert(_readOnlyProviders != null);
 
                 return _readOnlyProviders;
             }

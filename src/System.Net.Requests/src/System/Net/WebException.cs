@@ -91,7 +91,7 @@ namespace System.Net
             {
                 Exception inner = exception.InnerException;
                 string message = inner != null ?
-                    string.Format("{0} {1}", exception.Message, inner.Message) :
+                    exception.Message + " " + inner.Message :
                     exception.Message;
 
                 return new WebException(
@@ -124,6 +124,7 @@ namespace System.Net
             WebExceptionStatus status;
             switch (socketEx.SocketErrorCode)
             {
+                case SocketError.NoData:
                 case SocketError.HostNotFound:
                     status = WebExceptionStatus.NameResolutionFailure;
                     break;

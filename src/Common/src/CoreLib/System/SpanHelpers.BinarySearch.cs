@@ -2,13 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-#if !netstandard
 using Internal.Runtime.CompilerServices;
-#endif
 
 namespace System
 {
@@ -26,7 +25,7 @@ namespace System
         }
 
         public static int BinarySearch<T, TComparable>(
-            ref T spanStart, int length, TComparable comparable) 
+            ref T spanStart, int length, TComparable comparable)
             where TComparable : IComparable<T>
         {
             int lo = 0;
@@ -64,11 +63,11 @@ namespace System
         }
 
         // Helper to allow sharing all code via IComparable<T> inlineable
-        internal struct ComparerComparable<T, TComparer> : IComparable<T>
+        internal readonly struct ComparerComparable<T, TComparer> : IComparable<T>
             where TComparer : IComparer<T>
         {
-            readonly T _value;
-            readonly TComparer _comparer;
+            private readonly T _value;
+            private readonly TComparer _comparer;
 
             public ComparerComparable(T value, TComparer comparer)
             {

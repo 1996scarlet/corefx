@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -11,9 +12,6 @@ namespace Microsoft.Win32.SafeHandles
 {
     public sealed class SafeFileHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
-        /// <summary>A handle value of -1.</summary>
-        private static readonly IntPtr s_invalidHandle = new IntPtr(-1);
-
         private SafeFileHandle() : this(ownsHandle: true)
         {
         }
@@ -21,7 +19,7 @@ namespace Microsoft.Win32.SafeHandles
         private SafeFileHandle(bool ownsHandle)
             : base(ownsHandle)
         {
-            SetHandle(s_invalidHandle);
+            SetHandle(new IntPtr(-1));
         }
 
         public SafeFileHandle(IntPtr preexistingHandle, bool ownsHandle) : this(ownsHandle)
@@ -55,7 +53,7 @@ namespace Microsoft.Win32.SafeHandles
 
                 bool isDirectory = (error.Error == Interop.Error.ENOENT) &&
                     ((flags & Interop.Sys.OpenFlags.O_CREAT) != 0
-                    || !DirectoryExists(Path.GetDirectoryName(PathInternal.TrimEndingDirectorySeparator(path))));
+                    || !DirectoryExists(Path.GetDirectoryName(PathInternal.TrimEndingDirectorySeparator(path!))!));
 
                 Interop.CheckIo(
                     error.Error,
@@ -125,14 +123,7 @@ namespace Microsoft.Win32.SafeHandles
             // to retry, as the descriptor could actually have been closed, been subsequently reassigned, and
             // be in use elsewhere in the process.  Instead, we simply check whether the call was successful.
             int result = Interop.Sys.Close(handle);
-#if DEBUG
-            if (result != 0)
-            {
-                Debug.Fail(string.Format(
-                    "Close failed with result {0} and error {1}", 
-                    result, Interop.Sys.GetLastErrorInfo()));
-            }
-#endif
+            Debug.Assert(result == 0, $"Close failed with result {result} and error {Interop.Sys.GetLastErrorInfo()}");
             return result == 0;
         }
 

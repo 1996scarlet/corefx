@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Runtime.Serialization;
 
 namespace System
@@ -9,8 +10,10 @@ namespace System
     public sealed partial class TimeZoneInfo
     {
         [Serializable]
-        public sealed class AdjustmentRule : IEquatable<AdjustmentRule>, ISerializable, IDeserializationCallback
+        public sealed class AdjustmentRule : IEquatable<AdjustmentRule?>, ISerializable, IDeserializationCallback
         {
+            private static readonly TimeSpan DaylightDeltaAdjustment = TimeSpan.FromHours(24.0);
+            private static readonly TimeSpan MaxDaylightDelta = TimeSpan.FromHours(12.0);
             private readonly DateTime _dateStart;
             private readonly DateTime _dateEnd;
             private readonly TimeSpan _daylightDelta;
@@ -39,10 +42,10 @@ namespace System
 
             internal bool HasDaylightSaving =>
                 DaylightDelta != TimeSpan.Zero ||
-                (DaylightTransitionStart != default(TransitionTime) && DaylightTransitionStart.TimeOfDay != DateTime.MinValue) ||
-                (DaylightTransitionEnd != default(TransitionTime) && DaylightTransitionEnd.TimeOfDay != DateTime.MinValue.AddMilliseconds(1));
+                (DaylightTransitionStart != default && DaylightTransitionStart.TimeOfDay != DateTime.MinValue) ||
+                (DaylightTransitionEnd != default && DaylightTransitionEnd.TimeOfDay != DateTime.MinValue.AddMilliseconds(1));
 
-            public bool Equals(AdjustmentRule other) =>
+            public bool Equals(AdjustmentRule? other) =>
                 other != null &&
                 _dateStart == other._dateStart &&
                 _dateEnd == other._dateEnd &&
@@ -100,6 +103,7 @@ namespace System
                 TimeSpan baseUtcOffsetDelta,
                 bool noDaylightTransitions)
             {
+                AdjustDaylightDeltaToExpectedRange(ref daylightDelta, ref baseUtcOffsetDelta);
                 return new AdjustmentRule(
                     dateStart,
                     dateEnd,
@@ -186,6 +190,26 @@ namespace System
                 }
             }
 
+            /// <summary>
+            /// Ensures the daylight delta is within [-12, 12] hours
+            /// </summary>>
+            private static void AdjustDaylightDeltaToExpectedRange(ref TimeSpan daylightDelta, ref TimeSpan baseUtcOffsetDelta)
+            {
+                if (daylightDelta > MaxDaylightDelta)
+                {
+                    daylightDelta -= DaylightDeltaAdjustment;
+                    baseUtcOffsetDelta += DaylightDeltaAdjustment;
+                }
+                else if (daylightDelta < -MaxDaylightDelta)
+                {
+                    daylightDelta += DaylightDeltaAdjustment;
+                    baseUtcOffsetDelta -= DaylightDeltaAdjustment;
+                }
+
+                System.Diagnostics.Debug.Assert(daylightDelta <= MaxDaylightDelta && daylightDelta >= -MaxDaylightDelta,
+                                                "DaylightDelta should not ever be more than 24h");
+            }
+
             void IDeserializationCallback.OnDeserialization(object sender)
             {
                 // OnDeserialization is called after each instance of this class is deserialized.
@@ -225,13 +249,13 @@ namespace System
                     throw new ArgumentNullException(nameof(info));
                 }
 
-                _dateStart = (DateTime)info.GetValue("DateStart", typeof(DateTime)); // Do not rename (binary serialization)
-                _dateEnd = (DateTime)info.GetValue("DateEnd", typeof(DateTime)); // Do not rename (binary serialization)
-                _daylightDelta = (TimeSpan)info.GetValue("DaylightDelta", typeof(TimeSpan)); // Do not rename (binary serialization)
-                _daylightTransitionStart = (TransitionTime)info.GetValue("DaylightTransitionStart", typeof(TransitionTime)); // Do not rename (binary serialization)
-                _daylightTransitionEnd = (TransitionTime)info.GetValue("DaylightTransitionEnd", typeof(TransitionTime)); // Do not rename (binary serialization)
+                _dateStart = (DateTime)info.GetValue("DateStart", typeof(DateTime))!; // Do not rename (binary serialization)
+                _dateEnd = (DateTime)info.GetValue("DateEnd", typeof(DateTime))!; // Do not rename (binary serialization)
+                _daylightDelta = (TimeSpan)info.GetValue("DaylightDelta", typeof(TimeSpan))!; // Do not rename (binary serialization)
+                _daylightTransitionStart = (TransitionTime)info.GetValue("DaylightTransitionStart", typeof(TransitionTime))!; // Do not rename (binary serialization)
+                _daylightTransitionEnd = (TransitionTime)info.GetValue("DaylightTransitionEnd", typeof(TransitionTime))!; // Do not rename (binary serialization)
 
-                object o = info.GetValueNoThrow("BaseUtcOffsetDelta", typeof(TimeSpan)); // Do not rename (binary serialization)
+                object? o = info.GetValueNoThrow("BaseUtcOffsetDelta", typeof(TimeSpan)); // Do not rename (binary serialization)
                 if (o != null)
                 {
                     _baseUtcOffsetDelta = (TimeSpan)o;

@@ -18,7 +18,6 @@ namespace System.Collections.Generic
         internal LinkedListNode<T> head;
         internal int count;
         internal int version;
-        private object _syncRoot;
         private SerializationInfo _siInfo; //A temporary variable which we need during deserialization.  
 
         // names for serialization
@@ -354,7 +353,7 @@ namespace System.Collections.Generic
             }
         }
 
-        public virtual void OnDeserialization(Object sender)
+        public virtual void OnDeserialization(object sender)
         {
             if (_siInfo == null)
             {
@@ -460,17 +459,7 @@ namespace System.Collections.Generic
             get { return false; }
         }
 
-        object ICollection.SyncRoot
-        {
-            get
-            {
-                if (_syncRoot == null)
-                {
-                    Threading.Interlocked.CompareExchange<object>(ref _syncRoot, new object(), null);
-                }
-                return _syncRoot;
-            }
-        }
+        object ICollection.SyncRoot => this;
 
         void ICollection.CopyTo(Array array, int index)
         {
@@ -560,11 +549,6 @@ namespace System.Collections.Generic
                 _index = 0;
             }
 
-            private Enumerator(SerializationInfo info, StreamingContext context)
-            {
-                throw new PlatformNotSupportedException();
-            }
-
             public T Current
             {
                 get { return _current; }
@@ -627,7 +611,7 @@ namespace System.Collections.Generic
                 throw new PlatformNotSupportedException();
             }
 
-            void IDeserializationCallback.OnDeserialization(Object sender)
+            void IDeserializationCallback.OnDeserialization(object sender)
             {
                 throw new PlatformNotSupportedException();
             }

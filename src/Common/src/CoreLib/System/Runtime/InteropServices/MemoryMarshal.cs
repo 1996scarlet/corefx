@@ -2,14 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-#if !netstandard
 using Internal.Runtime.CompilerServices;
-#endif
 
 namespace System.Runtime.InteropServices
 {
@@ -25,31 +24,55 @@ namespace System.Runtime.InteropServices
         /// </summary>
         public static bool TryGetArray<T>(ReadOnlyMemory<T> memory, out ArraySegment<T> segment)
         {
-            object obj = memory.GetObjectStartLength(out int index, out int length);
-            if (index < 0)
+            object? obj = memory.GetObjectStartLength(out int index, out int length);
+
+            // As an optimization, we skip the "is string?" check below if typeof(T) is not char,
+            // as Memory<T> / ROM<T> can't possibly contain a string instance in this case.
+
+            if (obj != null && !(
+                (typeof(T) == typeof(char) && obj.GetType() == typeof(string))
+#if FEATURE_UTF8STRING
+                || ((typeof(T) == typeof(byte) || typeof(T) == typeof(Char8)) && obj.GetType() == typeof(Utf8String))
+#endif // FEATURE_UTF8STRING
+                ))
             {
-                Debug.Assert(length >= 0);
-                if (((MemoryManager<T>)obj).TryGetArray(out ArraySegment<T> arraySegment))
+                if (RuntimeHelpers.ObjectHasComponentSize(obj))
                 {
-                    segment = new ArraySegment<T>(arraySegment.Array, arraySegment.Offset + (index & ReadOnlyMemory<T>.RemoveFlagsBitMask), length);
+                    // The object has a component size, which means it's variable-length, but we already
+                    // checked above that it's not a string. The only remaining option is that it's a T[]
+                    // or a U[] which is blittable to a T[] (e.g., int[] and uint[]).
+
+                    // The array may be prepinned, so remove the high bit from the start index in the line below.
+                    // The ArraySegment<T> ctor will perform bounds checking on index & length.
+
+                    segment = new ArraySegment<T>(Unsafe.As<T[]>(obj), index & ReadOnlyMemory<T>.RemoveFlagsBitMask, length);
                     return true;
                 }
+                else
+                {
+                    // The object isn't null, and it's not variable-length, so the only remaining option
+                    // is MemoryManager<T>. The ArraySegment<T> ctor will perform bounds checking on index & length.
+
+                    Debug.Assert(obj is MemoryManager<T>);
+                    if (Unsafe.As<MemoryManager<T>>(obj).TryGetArray(out ArraySegment<T> tempArraySegment))
+                    {
+                        segment = new ArraySegment<T>(tempArraySegment.Array!, tempArraySegment.Offset + index, length); // TODO-NULLABLE: https://github.com/dotnet/roslyn/issues/26761
+                        return true;
+                    }
+                }
             }
-            else if (obj is T[] arr)
+
+            // If we got to this point, the object is null, or it's a string, or it's a MemoryManager<T>
+            // which isn't backed by an array. We'll quickly homogenize all zero-length Memory<T> instances
+            // to an empty array for the purposes of reporting back to our caller.
+
+            if (length == 0)
             {
-                segment = new ArraySegment<T>(arr, index, length & ReadOnlyMemory<T>.RemoveFlagsBitMask);
+                segment = ArraySegment<T>.Empty;
                 return true;
             }
 
-            if ((length & ReadOnlyMemory<T>.RemoveFlagsBitMask) == 0)
-            {
-#if FEATURE_PORTABLE_SPAN
-                segment = new ArraySegment<T>(SpanHelpers.PerTypeValues<T>.EmptyArray);
-#else
-                segment = ArraySegment<T>.Empty;
-#endif // FEATURE_PORTABLE_SPAN
-                return true;
-            }
+            // Otherwise, there's *some* data, but it's not convertible to T[].
 
             segment = default;
             return false;
@@ -64,12 +87,12 @@ namespace System.Runtime.InteropServices
         /// <param name="memory">The memory to get the manager for.</param>
         /// <param name="manager">The returned manager of the <see cref="ReadOnlyMemory{T}"/>.</param>
         /// <returns>A <see cref="bool"/> indicating if it was successful.</returns>
-        public static bool TryGetMemoryManager<T, TManager>(ReadOnlyMemory<T> memory, out TManager manager)
+        public static bool TryGetMemoryManager<T, TManager>(ReadOnlyMemory<T> memory, out TManager? manager) // TODO-NULLABLE: https://github.com/dotnet/roslyn/issues/26761
             where TManager : MemoryManager<T>
         {
-            TManager localManager; // Use register for null comparison rather than byref
+            TManager? localManager; // Use register for null comparison rather than byref
             manager = localManager = memory.GetObjectStartLength(out _, out _) as TManager;
-            return !ReferenceEquals(manager, null);
+            return localManager != null;
         }
 
         /// <summary>
@@ -83,16 +106,15 @@ namespace System.Runtime.InteropServices
         /// <param name="start">The offset from the start of the <paramref name="manager" /> that the <paramref name="memory" /> represents.</param>
         /// <param name="length">The length of the <paramref name="manager" /> that the <paramref name="memory" /> represents.</param>
         /// <returns>A <see cref="bool"/> indicating if it was successful.</returns>
-        public static bool TryGetMemoryManager<T, TManager>(ReadOnlyMemory<T> memory, out TManager manager, out int start, out int length)
+        public static bool TryGetMemoryManager<T, TManager>(ReadOnlyMemory<T> memory, out TManager? manager, out int start, out int length) // TODO-NULLABLE: https://github.com/dotnet/roslyn/issues/26761
            where TManager : MemoryManager<T>
         {
-            TManager localManager; // Use register for null comparison rather than byref
+            TManager? localManager; // Use register for null comparison rather than byref
             manager = localManager = memory.GetObjectStartLength(out start, out length) as TManager;
-            start &= ReadOnlyMemory<T>.RemoveFlagsBitMask;
 
             Debug.Assert(length >= 0);
 
-            if (ReferenceEquals(manager, null))
+            if (localManager == null)
             {
                 start = default;
                 length = default;
@@ -120,7 +142,7 @@ namespace System.Runtime.InteropServices
         /// <param name="start">The starting location in <paramref name="text"/>.</param>
         /// <param name="length">The number of items in <paramref name="text"/>.</param>
         /// <returns></returns>
-        public static bool TryGetString(ReadOnlyMemory<char> memory, out string text, out int start, out int length)
+        public static bool TryGetString(ReadOnlyMemory<char> memory, out string? text, out int start, out int length)
         {
             if (memory.GetObjectStartLength(out int offset, out int count) is string s)
             {
@@ -147,17 +169,10 @@ namespace System.Runtime.InteropServices
         public static T Read<T>(ReadOnlySpan<byte> source)
             where T : struct
         {
-#if netstandard
-            if (SpanHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                ThrowHelper.ThrowArgumentException_InvalidTypeWithPointersNotSupported(typeof(T));
-            }
-#else
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
                 ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
             }
-#endif
             if (Unsafe.SizeOf<T>() > source.Length)
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.length);
@@ -173,17 +188,10 @@ namespace System.Runtime.InteropServices
         public static bool TryRead<T>(ReadOnlySpan<byte> source, out T value)
             where T : struct
         {
-#if netstandard
-            if (SpanHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                ThrowHelper.ThrowArgumentException_InvalidTypeWithPointersNotSupported(typeof(T));
-            }
-#else
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
                 ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
             }
-#endif
             if (Unsafe.SizeOf<T>() > (uint)source.Length)
             {
                 value = default;
@@ -200,17 +208,10 @@ namespace System.Runtime.InteropServices
         public static void Write<T>(Span<byte> destination, ref T value)
             where T : struct
         {
-#if netstandard
-            if (SpanHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                ThrowHelper.ThrowArgumentException_InvalidTypeWithPointersNotSupported(typeof(T));
-            }
-#else
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
                 ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
             }
-#endif
             if ((uint)Unsafe.SizeOf<T>() > (uint)destination.Length)
             {
                 ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.length);
@@ -226,23 +227,60 @@ namespace System.Runtime.InteropServices
         public static bool TryWrite<T>(Span<byte> destination, ref T value)
             where T : struct
         {
-#if netstandard
-            if (SpanHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                ThrowHelper.ThrowArgumentException_InvalidTypeWithPointersNotSupported(typeof(T));
-            }
-#else
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
             {
                 ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
             }
-#endif
             if (Unsafe.SizeOf<T>() > (uint)destination.Length)
             {
                 return false;
             }
             Unsafe.WriteUnaligned<T>(ref GetReference(destination), value);
             return true;
+        }
+
+        /// <summary>
+        /// Re-interprets a span of bytes as a reference to structure of type T.
+        /// The type may not contain pointers or references. This is checked at runtime in order to preserve type safety.
+        /// </summary>
+        /// <remarks>
+        /// Supported only for platforms that support misaligned memory access or when the memory block is aligned by other means.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref T AsRef<T>(Span<byte> span)
+            where T : struct
+        {
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
+            }
+            if (Unsafe.SizeOf<T>() > (uint)span.Length)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.length);
+            }
+            return ref Unsafe.As<byte, T>(ref GetReference(span));
+        }
+
+        /// <summary>
+        /// Re-interprets a span of bytes as a reference to structure of type T.
+        /// The type may not contain pointers or references. This is checked at runtime in order to preserve type safety.
+        /// </summary>
+        /// <remarks>
+        /// Supported only for platforms that support misaligned memory access or when the memory block is aligned by other means.
+        /// </remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref readonly T AsRef<T>(ReadOnlySpan<byte> span)
+            where T : struct
+        {
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                ThrowHelper.ThrowInvalidTypeWithPointersNotSupported(typeof(T));
+            }
+            if (Unsafe.SizeOf<T>() > (uint)span.Length)
+            {
+                ThrowHelper.ThrowArgumentOutOfRangeException(ExceptionArgument.length);
+            }
+            return ref Unsafe.As<byte, T>(ref GetReference(span));
         }
 
         /// <summary>
@@ -261,7 +299,7 @@ namespace System.Runtime.InteropServices
         /// Thrown when the specified <paramref name="start"/> or end index is not in the range (&lt;0 or &gt;=Length).
         /// </exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Memory<T> CreateFromPinnedArray<T>(T[] array, int start, int length)
+        public static Memory<T> CreateFromPinnedArray<T>(T[]? array, int start, int length)
         {
             if (array == null)
             {
@@ -269,13 +307,13 @@ namespace System.Runtime.InteropServices
                     ThrowHelper.ThrowArgumentOutOfRangeException();
                 return default;
             }
-            if (default(T) == null && array.GetType() != typeof(T[]))
+            if (default(T)! == null && array.GetType() != typeof(T[])) // TODO-NULLABLE: https://github.com/dotnet/roslyn/issues/34757
                 ThrowHelper.ThrowArrayTypeMismatchException();
             if ((uint)start > (uint)array.Length || (uint)length > (uint)(array.Length - start))
                 ThrowHelper.ThrowArgumentOutOfRangeException();
 
-            // Before using _length, check if _length < 0, then 'and' it with RemoveFlagsBitMask
-            return new Memory<T>((object)array, start, length | (1 << 31));
+            // Before using _index, check if _index < 0, then 'and' it with RemoveFlagsBitMask
+            return new Memory<T>((object)array, start | (1 << 31), length);
         }
     }
 }

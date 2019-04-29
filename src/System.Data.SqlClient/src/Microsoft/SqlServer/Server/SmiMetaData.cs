@@ -65,8 +65,8 @@ namespace Microsoft.SqlServer.Server
         internal const int MaxTimeScale = 7;        // Max scale for time, datetime2, and datetimeoffset
         internal static readonly DateTime MaxSmallDateTime = new DateTime(2079, 06, 06, 23, 59, 29, 998);
         internal static readonly DateTime MinSmallDateTime = new DateTime(1899, 12, 31, 23, 59, 29, 999);
-        internal static readonly SqlMoney MaxSmallMoney = new SqlMoney(((Decimal)Int32.MaxValue) / 10000);
-        internal static readonly SqlMoney MinSmallMoney = new SqlMoney(((Decimal)Int32.MinValue) / 10000);
+        internal static readonly SqlMoney MaxSmallMoney = new SqlMoney(((decimal)int.MaxValue) / 10000);
+        internal static readonly SqlMoney MinSmallMoney = new SqlMoney(((decimal)int.MinValue) / 10000);
         internal const SqlCompareOptions DefaultStringCompareOptions = SqlCompareOptions.IgnoreCase
                                         | SqlCompareOptions.IgnoreKanaType | SqlCompareOptions.IgnoreWidth;
 
@@ -330,7 +330,7 @@ namespace Microsoft.SqlServer.Server
                     // For SqlParameter, both userDefinedType and udtAssemblyQualifiedName can be NULL,
                     // so we are checking only maxLength if it will be used (i.e. userDefinedType is NULL)
                     Debug.Assert((null != userDefinedType) || (0 <= maxLength || UnlimitedMaxLengthIndicator == maxLength),
-                            string.Format(null, "SmiMetaData.ctor: Udt name={0}, maxLength={1}", udtAssemblyQualifiedName, maxLength));
+                            $"SmiMetaData.ctor: Udt name={udtAssemblyQualifiedName}, maxLength={maxLength}");
                     // Type not validated until matched to a server.  Could be null if extended metadata supplies three-part name!
                     _clrType = userDefinedType;
                     if (null != userDefinedType)
@@ -367,7 +367,7 @@ namespace Microsoft.SqlServer.Server
                     _maxLength = 10 - s_maxVarTimeLenOffsetFromScale[scale];
                     break;
                 default:
-                    Debug.Assert(false, "How in the world did we get here? :" + dbType);
+                    Debug.Fail("How in the world did we get here? :" + dbType);
                     break;
             }
 

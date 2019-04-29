@@ -3,7 +3,9 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Diagnostics;
+#if !netcoreapp
 using System.Linq;
+#endif
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -16,18 +18,11 @@ namespace System.Data.SqlClient.SNI
     /// <summary>
     /// Managed SNI proxy implementation. Contains many SNI entry points used by SqlClient.
     /// </summary>
-    internal class SNIProxy
+    internal partial class SNIProxy
     {
         private const int DefaultSqlServerPort = 1433;
         private const int DefaultSqlServerDacPort = 1434;
         private const string SqlServerSpnHeader = "MSSQLSvc";
-
-        internal class SspiClientContextResult
-        {
-            internal const uint OK = 0;
-            internal const uint Failed = 1;
-            internal const uint KerberosTicketMissing = 2;
-        }
 
         public static readonly SNIProxy Singleton = new SNIProxy();
 
@@ -69,13 +64,10 @@ namespace System.Data.SqlClient.SNI
         /// <summary>
         /// Generate SSPI context
         /// </summary>
-        /// <param name="handle">SNI connection handle</param>
+        /// <param name="sspiClientContextStatus">SSPI client context status</param>
         /// <param name="receivedBuff">Receive buffer</param>
-        /// <param name="receivedLength">Received length</param>
         /// <param name="sendBuff">Send buffer</param>
-        /// <param name="sendLength">Send length</param>
         /// <param name="serverName">Service Principal Name buffer</param>
-        /// <param name="serverNameLength">Length of Service Principal Name</param>
         /// <returns>SNI error code</returns>
         public void GenSspiClientContext(SspiClientContextStatus sspiClientContextStatus, byte[] receivedBuff, ref byte[] sendBuff, byte[] serverName)
         {
@@ -90,18 +82,8 @@ namespace System.Data.SqlClient.SNI
                 credentialsHandle = NegotiateStreamPal.AcquireDefaultCredential(securityPackage, false);
             }
 
-            SecurityBuffer[] inSecurityBufferArray = null;
-            if (receivedBuff != null)
-            {
-                inSecurityBufferArray = new SecurityBuffer[] { new SecurityBuffer(receivedBuff, SecurityBufferType.SECBUFFER_TOKEN) };
-            }
-            else
-            {
-                inSecurityBufferArray = new SecurityBuffer[] { };
-            }
-
             int tokenSize = NegotiateStreamPal.QueryMaxTokenSize(securityPackage);
-            SecurityBuffer outSecurityBuffer = new SecurityBuffer(tokenSize, SecurityBufferType.SECBUFFER_TOKEN);
+            byte[] resultToken = new byte[tokenSize];
 
             ContextFlagsPal requestedContextFlags = ContextFlagsPal.Connection
                 | ContextFlagsPal.Confidentiality
@@ -111,23 +93,23 @@ namespace System.Data.SqlClient.SNI
             string serverSPN = System.Text.Encoding.UTF8.GetString(serverName);
 
             SecurityStatusPal statusCode = NegotiateStreamPal.InitializeSecurityContext(
-                       credentialsHandle,
+                       ref credentialsHandle,
                        ref securityContext,
                        serverSPN,
                        requestedContextFlags,
-                       inSecurityBufferArray,
-                       outSecurityBuffer,
+                       receivedBuff,
+                       null,
+                       ref resultToken,
                        ref contextFlags);
 
             if (statusCode.ErrorCode == SecurityStatusPalErrorCode.CompleteNeeded ||
                 statusCode.ErrorCode == SecurityStatusPalErrorCode.CompAndContinue)
             {
-                inSecurityBufferArray = new SecurityBuffer[] { outSecurityBuffer };
-                statusCode = NegotiateStreamPal.CompleteAuthToken(ref securityContext, inSecurityBufferArray);
-                outSecurityBuffer.token = null;
+                statusCode = NegotiateStreamPal.CompleteAuthToken(ref securityContext, resultToken);
+                resultToken = null;
             }
 
-            sendBuff = outSecurityBuffer.token;
+            sendBuff = resultToken;
             if (sendBuff == null)
             {
                 sendBuff = Array.Empty<byte>();
@@ -249,7 +231,7 @@ namespace System.Data.SqlClient.SNI
             {
                 result = handle.SendAsync(clonedPacket, true);
             }
-            
+
             return result;
         }
 
@@ -360,7 +342,7 @@ namespace System.Data.SqlClient.SNI
                 // If the DNS lookup failed, then resort to using the user provided hostname to construct the SPN.
                 fullyQualifiedDomainName = hostEntry?.HostName ?? hostNameOrAddress;
             }
-            string serverSpn = SqlServerSpnHeader + "/" + fullyQualifiedDomainName;
+            string serverSpn = SqlServerSpnHeader + SpnServiceHostSeparator + fullyQualifiedDomainName;
             if (!string.IsNullOrWhiteSpace(portOrInstanceName))
             {
                 serverSpn += ":" + portOrInstanceName;
@@ -371,7 +353,7 @@ namespace System.Data.SqlClient.SNI
         /// <summary>
         /// Creates an SNITCPHandle object
         /// </summary>
-        /// <param name="fullServerName">Server string. May contain a comma delimited port number.</param>
+        /// <param name="details">Data source</param>
         /// <param name="timerExpire">Timer expiration</param>
         /// <param name="callbackObject">Asynchronous I/O callback object</param>
         /// <param name="parallel">Should MultiSubnetFailover be used</param>
@@ -422,7 +404,7 @@ namespace System.Data.SqlClient.SNI
         /// <summary>
         /// Creates an SNINpHandle object
         /// </summary>
-        /// <param name="fullServerName">Server string representing a UNC pipe path.</param>
+        /// <param name="details">Data source</param>
         /// <param name="timerExpire">Timer expiration</param>
         /// <param name="callbackObject">Asynchronous I/O callback object</param>
         /// <param name="parallel">Should MultiSubnetFailover be used. Only returns an error for named pipes.</param>
@@ -584,7 +566,12 @@ namespace System.Data.SqlClient.SNI
             _dataSourceAfterTrimmingProtocol = (firstIndexOfColon > -1) && ConnectionProtocol != DataSource.Protocol.None
                 ? _workingDataSource.Substring(firstIndexOfColon + 1).Trim() : _workingDataSource;
 
-            if (_dataSourceAfterTrimmingProtocol.Contains("/")) // Pipe paths only allow back slashes
+            // Pipe paths only allow back slashes
+#if netcoreapp
+            if (_dataSourceAfterTrimmingProtocol.Contains('/')) // string.Contains(char) is .NetCore2.1+ specific
+#else
+            if (_dataSourceAfterTrimmingProtocol.Contains("/"))
+#endif
             {
                 if (ConnectionProtocol == DataSource.Protocol.None)
                     ReportSNIError(SNIProviders.INVALID_PROV);
@@ -780,7 +767,7 @@ namespace System.Data.SqlClient.SNI
             if (_dataSourceAfterTrimmingProtocol.StartsWith(PipeBeginning) || ConnectionProtocol == Protocol.NP)
             {
                 // If the data source is "np:servername"
-                if (!_dataSourceAfterTrimmingProtocol.Contains(BackSlashSeparator))
+                if (!_dataSourceAfterTrimmingProtocol.Contains(BackSlashSeparator)) // string.Contains(char) is .NetCore2.1+ specific. Else uses Linq (perf warning)
                 {
                     PipeHostName = ServerName = _dataSourceAfterTrimmingProtocol;
                     InferLocalServerName();

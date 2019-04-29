@@ -180,9 +180,9 @@ namespace System.Net.WebSockets
                 string version = null;
                 foreach (Interop.WebSocket.HttpHeader header in additionalHeaders)
                 {
-                    if (string.Compare(header.Name,
+                    if (string.Equals(header.Name,
                             HttpKnownHeaderNames.SecWebSocketVersion,
-                            StringComparison.OrdinalIgnoreCase) == 0)
+                            StringComparison.OrdinalIgnoreCase))
                     {
                         version = header.Value;
                         break;
@@ -471,7 +471,7 @@ namespace System.Net.WebSockets
             if ((httpHeader.Name == null && length != 0) ||
                 (httpHeader.Name != null && length != httpHeader.Name.Length))
             {
-                Debug.Assert(false, "The length of 'httpHeader.Name' MUST MATCH 'length'.");
+                Debug.Fail("The length of 'httpHeader.Name' MUST MATCH 'length'.");
                 throw new AccessViolationException();
             }
 
@@ -494,7 +494,7 @@ namespace System.Net.WebSockets
             if ((httpHeader.Value == null && length != 0) ||
                 (httpHeader.Value != null && length != httpHeader.Value.Length))
             {
-                Debug.Assert(false, "The length of 'httpHeader.Value' MUST MATCH 'length'.");
+                Debug.Fail("The length of 'httpHeader.Value' MUST MATCH 'length'.");
                 throw new AccessViolationException();
             }
         }

@@ -6,6 +6,7 @@ using System;
 using System.Runtime.Caching.Resources;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
+using System.Diagnostics;
 
 // Every member of this class is thread-safe.
 // 
@@ -87,7 +88,7 @@ namespace System.Runtime.Caching
 
         private SafeBitVector32 _flags;
         private OnChangedCallback _onChangedCallback;
-        private Object _onChangedState = s_NOT_SET;
+        private object _onChangedState = s_NOT_SET;
 
         // The helper routines (OnChangedHelper and DisposeHelper) are used to prevent 
         // an infinite loop, where Dispose calls OnChanged and OnChanged calls Dispose.
@@ -107,7 +108,7 @@ namespace System.Runtime.Caching
 
         // The helper routines (OnChangedHelper and DisposeHelper) are used to prevent 
         // an infinite loop, where Dispose calls OnChanged and OnChanged calls Dispose.
-        private void OnChangedHelper(Object state)
+        private void OnChangedHelper(object state)
         {
             _flags[CHANGED] = true;
 
@@ -143,7 +144,7 @@ namespace System.Runtime.Caching
             _flags[INITIALIZED] = true;
 
             // If the dependency has already changed, or someone tried to dispose us, then call Dispose now.
-            Dbg.Assert(_flags[INITIALIZED], "It is critical that INITIALIZED is set before CHANGED is checked below");
+            Debug.Assert(_flags[INITIALIZED], "It is critical that INITIALIZED is set before CHANGED is checked below");
             if (_flags[CHANGED])
             {
                 Dispose();
@@ -155,12 +156,12 @@ namespace System.Runtime.Caching
         // OnChangedCallback is only invoked once, and only after NotifyOnChanged is
         // called by the cache implementer.  OnChanged is also invoked when the instance
         // is disposed, but only has an affect if the callback has not already been invoked.
-        protected void OnChanged(Object state)
+        protected void OnChanged(object state)
         {
             OnChangedHelper(state);
 
             // OnChanged will also invoke Dispose, but only after initialization is complete
-            Dbg.Assert(_flags[CHANGED], "It is critical that CHANGED is set before INITIALIZED is checked below.");
+            Debug.Assert(_flags[CHANGED], "It is critical that CHANGED is set before INITIALIZED is checked below.");
             if (_flags[INITIALIZED])
             {
                 DisposeHelper();
@@ -207,7 +208,7 @@ namespace System.Runtime.Caching
             OnChangedHelper(null);
 
             // If not initialized, throw, so the derived class understands that it must call InitializeComplete before Dispose.
-            Dbg.Assert(_flags[CHANGED], "It is critical that CHANGED is set before INITIALIZED is checked below.");
+            Debug.Assert(_flags[CHANGED], "It is critical that CHANGED is set before INITIALIZED is checked below.");
             if (!_flags[INITIALIZED])
             {
                 throw new InvalidOperationException(SR.Init_not_complete);
@@ -225,7 +226,7 @@ namespace System.Runtime.Caching
         {
             if (onChangedCallback == null)
             {
-                throw new ArgumentNullException("onChangedCallback");
+                throw new ArgumentNullException(nameof(onChangedCallback));
             }
 
             if (Interlocked.CompareExchange(ref _onChangedCallback, onChangedCallback, null) != null)

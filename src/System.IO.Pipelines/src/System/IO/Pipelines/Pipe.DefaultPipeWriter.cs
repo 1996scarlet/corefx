@@ -34,13 +34,18 @@ namespace System.IO.Pipelines
 
             public override Memory<byte> GetMemory(int sizeHint = 0) => _pipe.GetMemory(sizeHint);
 
-            public override Span<byte> GetSpan(int sizeHint = 0) => _pipe.GetMemory(sizeHint).Span;
+            public override Span<byte> GetSpan(int sizeHint = 0) => _pipe.GetSpan(sizeHint);
 
             public ValueTaskSourceStatus GetStatus(short token) => _pipe.GetFlushAsyncStatus();
 
             public FlushResult GetResult(short token) => _pipe.GetFlushAsyncResult();
 
             public void OnCompleted(Action<object> continuation, object state, short token, ValueTaskSourceOnCompletedFlags flags) => _pipe.OnFlushAsyncCompleted(continuation, state, flags);
+
+            public override ValueTask<FlushResult> WriteAsync(ReadOnlyMemory<byte> source, CancellationToken cancellationToken = default)
+            {
+                return _pipe.WriteAsync(source, cancellationToken);
+            }
         }
     }
 }

@@ -8,14 +8,18 @@ using System.Net.Test.Common;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace System.Net.Http.Functional.Tests
 {
     using Configuration = System.Net.Test.Common.Configuration;
 
-    public abstract class HttpClientHandler_DefaultProxyCredentials_Test : HttpClientTestBase
+    public abstract class HttpClientHandler_DefaultProxyCredentials_Test : HttpClientHandlerTestBase
     {
+        public HttpClientHandler_DefaultProxyCredentials_Test(ITestOutputHelper output) : base(output) { }
+
         [Fact]
         public void Default_Get_Null()
         {
@@ -44,7 +48,7 @@ namespace System.Net.Http.Functional.Tests
         }
 
         [ActiveIssue(23702, TargetFrameworkMonikers.NetFramework)]
-        [ActiveIssue(20010, TargetFrameworkMonikers.Uap)]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "UAP HTTP stack doesn't support .Proxy property")]
         [Fact]
         public async Task ProxyExplicitlyProvided_DefaultCredentials_Ignored()
         {
@@ -69,7 +73,7 @@ namespace System.Net.Http.Functional.Tests
                 if (!IsCurlHandler) // libcurl sends Basic auth preemptively when only basic creds are provided; other handlers wait for 407.
                 {
                     await server.AcceptConnectionSendResponseAndCloseAsync(
-                        HttpStatusCode.ProxyAuthenticationRequired, "Connection: close\r\nProxy-Authenticate: Basic\r\n");
+                        HttpStatusCode.ProxyAuthenticationRequired, "Proxy-Authenticate: Basic\r\n");
                 }
 
                 List<string> headers = await server.AcceptConnectionSendResponseAndCloseAsync(HttpStatusCode.OK);
@@ -77,7 +81,7 @@ namespace System.Net.Http.Functional.Tests
             });
         }
 
-        [OuterLoop] // TODO: Issue #11345
+        [OuterLoop("Uses external server")]
         [PlatformSpecific(TestPlatforms.AnyUnix)] // The default proxy is resolved via WinINet on Windows.
         [Theory]
         [InlineData(false)]
@@ -102,7 +106,7 @@ namespace System.Net.Http.Functional.Tests
                     psi.Environment.Add("http_proxy", $"http://{proxyUri.Host}:{proxyUri.Port}");
                 }
 
-                RemoteInvoke(async (useProxyString, useSocketsHttpHandlerString) =>
+                RemoteExecutor.Invoke(async (useProxyString, useSocketsHttpHandlerString) =>
                 {
                     using (HttpClientHandler handler = CreateHttpClientHandler(useSocketsHttpHandlerString))
                     using (var client = new HttpClient(handler))
@@ -115,7 +119,7 @@ namespace System.Net.Http.Functional.Tests
                         // Correctness of user and password is done in server part.
                         Assert.True(response.StatusCode ==  HttpStatusCode.OK);
                     }
-                    return SuccessExitCode;
+                    return RemoteExecutor.SuccessExitCode;
                 }, useProxy.ToString(), UseSocketsHttpHandler.ToString(), new RemoteInvokeOptions { StartInfo = psi }).Dispose();
                 if (useProxy)
                 {
@@ -127,7 +131,7 @@ namespace System.Net.Http.Functional.Tests
         // The purpose of this test is mainly to validate the .NET Framework OOB System.Net.Http implementation
         // since it has an underlying dependency to WebRequest. While .NET Core implementations of System.Net.Http
         // are not using any WebRequest code, the test is still useful to validate correctness.
-        [OuterLoop] // TODO: Issue #11345
+        [OuterLoop("Uses external server")]
         [Fact]
         public async Task ProxyNotExplicitlyProvided_DefaultCredentialsSet_DefaultWebProxySetToNull_Success()
         {

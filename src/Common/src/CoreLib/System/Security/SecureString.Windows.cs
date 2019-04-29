@@ -2,11 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Diagnostics;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using Microsoft.Win32;
 
 namespace System.Security
 {
@@ -19,6 +19,7 @@ namespace System.Security
             Debug.Assert(str._encrypted, "Expected to be used only on encrypted SecureStrings");
 
             AllocateBuffer(str._buffer.Length);
+            Debug.Assert(_buffer != null);
             SafeBSTRHandle.Copy(str._buffer, _buffer, str._buffer.Length * sizeof(char));
 
             _decryptedLength = str._decryptedLength;
@@ -33,6 +34,7 @@ namespace System.Security
             _decryptedLength = length;
 
             byte* bufferPtr = null;
+            Debug.Assert(_buffer != null);
             try
             {
                 _buffer.AcquirePointer(ref bufferPtr);
@@ -55,6 +57,7 @@ namespace System.Security
             try
             {
                 EnsureCapacity(_decryptedLength + 1);
+                Debug.Assert(_buffer != null);
                 _buffer.Write<char>((uint)_decryptedLength * sizeof(char), c);
                 _decryptedLength++;
             }
@@ -67,6 +70,7 @@ namespace System.Security
         private void ClearCore()
         {
             _decryptedLength = 0;
+            Debug.Assert(_buffer != null);
             _buffer.ClearBuffer();
         }
 
@@ -83,6 +87,7 @@ namespace System.Security
         {
             byte* bufferPtr = null;
             UnprotectMemory();
+            Debug.Assert(_buffer != null);
             try
             {
                 EnsureCapacity(_decryptedLength + 1);
@@ -111,6 +116,7 @@ namespace System.Security
         {
             byte* bufferPtr = null;
             UnprotectMemory();
+            Debug.Assert(_buffer != null);
             try
             {
                 _buffer.AcquirePointer(ref bufferPtr);
@@ -137,6 +143,7 @@ namespace System.Security
             UnprotectMemory();
             try
             {
+                Debug.Assert(_buffer != null);
                 _buffer.Write<char>((uint)index * sizeof(char), c);
             }
             finally
@@ -145,7 +152,7 @@ namespace System.Security
             }
         }
 
-        internal unsafe IntPtr MarshalToBSTR()
+        internal unsafe IntPtr MarshalToBSTRCore()
         {
             int length = _decryptedLength;
             IntPtr ptr = IntPtr.Zero;
@@ -153,12 +160,13 @@ namespace System.Security
             byte* bufferPtr = null;
 
             UnprotectMemory();
+            Debug.Assert(_buffer != null);
             try
             {
                 _buffer.AcquirePointer(ref bufferPtr);
                 int resultByteLength = (length + 1) * sizeof(char);
 
-                ptr = PInvokeMarshal.AllocBSTR(length);
+                ptr = Marshal.AllocBSTR(length);
 
                 Buffer.MemoryCopy(bufferPtr, (byte*)ptr, resultByteLength, length * sizeof(char));
 
@@ -172,7 +180,7 @@ namespace System.Security
                 if (result == IntPtr.Zero && ptr != IntPtr.Zero)
                 {
                     RuntimeImports.RhZeroMemory(ptr, (UIntPtr)(length * sizeof(char)));
-                    PInvokeMarshal.FreeBSTR(ptr);
+                    Marshal.FreeBSTR(ptr);
                 }
 
                 if (bufferPtr != null)
@@ -191,6 +199,7 @@ namespace System.Security
             byte* bufferPtr = null;
 
             UnprotectMemory();
+            Debug.Assert(_buffer != null);
             try
             {
                 _buffer.AcquirePointer(ref bufferPtr);
@@ -232,20 +241,12 @@ namespace System.Security
             return result;
         }
 
-        private void EnsureNotDisposed()
-        {
-            if (_buffer == null)
-            {
-                throw new ObjectDisposedException(GetType().Name);
-            }
-        }
-
         // -----------------------------
         // ---- PAL layer ends here ----
         // -----------------------------
 
         private const int BlockSize = (int)Interop.Crypt32.CRYPTPROTECTMEMORY_BLOCK_SIZE / sizeof(char);
-        private SafeBSTRHandle _buffer;
+        private SafeBSTRHandle? _buffer;
         private bool _encrypted;
 
         private void AllocateBuffer(uint size)
@@ -265,6 +266,7 @@ namespace System.Security
                 throw new ArgumentOutOfRangeException(nameof(capacity), SR.ArgumentOutOfRange_Capacity);
             }
 
+            Debug.Assert(_buffer != null);
             if (((uint)capacity * sizeof(char)) <= _buffer.ByteLength)
             {
                 return;
@@ -279,6 +281,7 @@ namespace System.Security
 
         private void ProtectMemory()
         {
+            Debug.Assert(_buffer != null);
             Debug.Assert(!_buffer.IsInvalid, "Invalid buffer!");
 
             if (_decryptedLength != 0 &&
@@ -293,6 +296,7 @@ namespace System.Security
 
         private void UnprotectMemory()
         {
+            Debug.Assert(_buffer != null);
             Debug.Assert(!_buffer.IsInvalid, "Invalid buffer!");
 
             if (_decryptedLength != 0 &&

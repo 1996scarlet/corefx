@@ -10,19 +10,20 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 
 using Xunit;
+using Xunit.Abstractions;
 
 namespace System.Net.Http.Functional.Tests
 {
     using Configuration = System.Net.Test.Common.Configuration;
 
-    public abstract class HttpClientEKUTest : HttpClientTestBase
+    public abstract class HttpClientEKUTest : HttpClientHandlerTestBase
     {
         // Curl + OSX SecureTransport doesn't support the custom certificate callback.
         private static bool BackendSupportsCustomCertificateHandling =>
 #if TargetsWindows
             true;
 #else
-            Interop.Http.GetSslVersionDescription()?.StartsWith(Interop.Http.OpenSsl10Description, StringComparison.OrdinalIgnoreCase) ?? false;
+            TestHelper.NativeHandlerSupportsSslConfiguration();
 #endif
 
         private static bool CanTestCertificates =>
@@ -44,6 +45,8 @@ namespace System.Net.Http.Functional.Tests
 
         private VerboseTestLogging _log = VerboseTestLogging.GetInstance();
 
+        public HttpClientEKUTest(ITestOutputHelper output) : base(output) { }
+
         [ConditionalFact(nameof(CanTestCertificates))]
         public async Task HttpClient_NoEKUServerAuth_Ok()
         {
@@ -62,7 +65,7 @@ namespace System.Net.Http.Functional.Tests
                 string requestUriString = GetUriStringAndConfigureHandler(options, server, handler);
                 tasks[1] = client.GetStringAsync(requestUriString);
 
-                await Task.WhenAll(tasks).TimeoutAfter(TestTimeoutMilliseconds);
+                await tasks.WhenAllOrAnyFailed(TestTimeoutMilliseconds);
             }
         }
 
@@ -108,7 +111,7 @@ namespace System.Net.Http.Functional.Tests
                 handler.ClientCertificates.Add(clientCertificateNoEku);
                 tasks[1] = client.GetStringAsync(requestUriString);
 
-                await Task.WhenAll(tasks).TimeoutAfter(TestTimeoutMilliseconds);
+                await tasks.WhenAllOrAnyFailed(TestTimeoutMilliseconds);
             }
         }
 

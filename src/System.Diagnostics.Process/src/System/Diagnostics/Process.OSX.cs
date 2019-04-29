@@ -14,7 +14,7 @@ namespace System.Diagnostics
         {
             get
             {
-                EnsureState(State.HaveId);
+                EnsureState(State.HaveNonExitedId);
                 Interop.libproc.rusage_info_v3 info = Interop.libproc.proc_pid_rusage(_processId);
                 return new TimeSpan(Convert.ToInt64(info.ri_system_time));
             }
@@ -41,7 +41,7 @@ namespace System.Diagnostics
                 // mach_timebase_info() which give us the factor. Then we multiply the factor by the absolute time and the divide
                 // the result by 10^9 to convert it from nanoseconds to seconds.
 
-                EnsureState(State.HaveId);
+                EnsureState(State.HaveNonExitedId);
 
                 uint numer, denom;
                 Interop.Sys.GetTimebaseInfo(out numer, out denom);
@@ -54,8 +54,8 @@ namespace System.Diagnostics
                 }
 
                 // usually seconds will be negative
-                double seconds = (((long) info.ri_proc_start_abstime - (long) absoluteTime) * (double)numer / denom) / NanoSecondToSecondFactor;
-                return  DateTime.UtcNow.AddSeconds(seconds).ToLocalTime();
+                double seconds = (((long)info.ri_proc_start_abstime - (long)absoluteTime) * (double)numer / denom) / NanoSecondToSecondFactor;
+                return DateTime.UtcNow.AddSeconds(seconds).ToLocalTime();
             }
         }
 
@@ -74,7 +74,7 @@ namespace System.Diagnostics
         {
             get
             {
-                EnsureState(State.HaveId);
+                EnsureState(State.HaveNonExitedId);
                 Interop.libproc.rusage_info_v3 info = Interop.libproc.proc_pid_rusage(_processId);
                 return new TimeSpan(Convert.ToInt64(info.ri_system_time + info.ri_user_time));
             }
@@ -88,9 +88,24 @@ namespace System.Diagnostics
         {
             get
             {
-                EnsureState(State.HaveId);
+                EnsureState(State.HaveNonExitedId);
                 Interop.libproc.rusage_info_v3 info = Interop.libproc.proc_pid_rusage(_processId);
                 return new TimeSpan(Convert.ToInt64(info.ri_user_time));
+            }
+        }
+
+        /// <summary>Gets parent process ID</summary>
+        private int ParentProcessId
+        {
+            get
+            {
+                EnsureState(State.HaveNonExitedId);
+                Interop.libproc.proc_taskallinfo? info = Interop.libproc.GetProcessInfoById(Id);
+
+                if (info == null)
+                    throw new Win32Exception(SR.ProcessInformationUnavailable);
+
+                return Convert.ToInt32(info.Value.pbsd.pbi_ppid);
             }
         }
 

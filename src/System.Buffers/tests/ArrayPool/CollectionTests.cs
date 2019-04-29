@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
 namespace System.Buffers.ArrayPool.Tests
@@ -19,6 +20,7 @@ namespace System.Buffers.ArrayPool.Tests
         [Theory,
             InlineData(true),
             InlineData(false)]
+        [ActiveIssue(29866, TargetFrameworkMonikers.UapNotUapAot)]
         public void BuffersAreCollectedWhenStale(bool trim)
         {
             RemoteInvokeWithTrimming((trimString) =>
@@ -73,7 +75,7 @@ namespace System.Buffers.ArrayPool.Tests
 
                 // Should only have found a new buffer if we're trimming
                 Assert.Equal(parsedTrim, foundNewBuffer);
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }, trim, 3 * 60 * 1000); // This test has to wait for the buffers to go stale (give it three minutes)
         }
 
@@ -130,7 +132,7 @@ namespace System.Buffers.ArrayPool.Tests
                     Assert.Same(buffer, pool.Rent(BufferSize));
                 }
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }, trim);
         }
 
@@ -146,6 +148,7 @@ namespace System.Buffers.ArrayPool.Tests
         [Theory,
             InlineData(true),
             InlineData(false)]
+        [ActiveIssue(29866, TargetFrameworkMonikers.UapNotUapAot)]
         public void PollingEventFires(bool trim)
         {
             RemoteInvokeWithTrimming((trimString) =>
@@ -187,7 +190,7 @@ namespace System.Buffers.ArrayPool.Tests
 
                 // Polling events should only fire when trimming is enabled
                 Assert.Equal(parsedTrim, pollEventFired);
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }, trim);
         }
     }

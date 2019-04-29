@@ -3,13 +3,16 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
+using System.Common.Tests;
 using System.ComponentModel.Composition.Factories;
 using System.ComponentModel.Composition.Primitives;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.UnitTesting;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
 namespace System.ComponentModel.Composition
@@ -367,21 +370,25 @@ namespace System.ComponentModel.Composition
         [Fact]
         public void Message_ShouldFormatCountOfRootCausesUsingTheCurrentCulture()
         {
-            var cultures = Expectations.GetCulturesForFormatting();
-
-            foreach (var culture in cultures)
+            RemoteExecutor.Invoke(() =>
             {
-                using (new CurrentCultureContext(culture))
+                IEnumerable<CultureInfo> cultures = Expectations.GetCulturesForFormatting();
+                foreach (CultureInfo culture in cultures)
                 {
-                    var errors = CreateCompositionErrors(1000);
-                    var exception = CreateCompositionException(errors);
-                    AssertMessage(exception, 1000, culture);
+                    // Save old culture and set a fixed culture for object instantiation
+                    using (new ThreadCultureChange(culture))
+                    {
+                        CompositionError[] errors = CreateCompositionErrors(1000);
+                        CompositionException exception = CreateCompositionException(errors);
+                        AssertMessage(exception, 1000, culture);
 
-                    errors = CreateCompositionErrors(1);
-                    exception = CreateCompositionException(errors);
-                    AssertMessage(exception, 1, culture);
+                        errors = CreateCompositionErrors(1);
+                        exception = CreateCompositionException(errors);
+                        AssertMessage(exception, 1, culture);
+                    }
                 }
-            }
+                return RemoteExecutor.SuccessExitCode;
+            }).Dispose();
         }
 
         private string GetElementGraphString(CompositionError error)

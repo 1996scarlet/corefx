@@ -85,7 +85,7 @@ namespace System.Net.Http
                 if (value > HttpContent.MaxBufferSize)
                 {
                     throw new ArgumentOutOfRangeException(nameof(value), value,
-                        string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        SR.Format(System.Globalization.CultureInfo.InvariantCulture,
                         SR.net_http_content_buffersize_limit, HttpContent.MaxBufferSize));
                 }
                 CheckDisposedOrStarted();
@@ -112,13 +112,9 @@ namespace System.Net.Http
         public HttpClient(HttpMessageHandler handler, bool disposeHandler)
             : base(handler, disposeHandler)
         {
-            if (NetEventSource.IsEnabled) NetEventSource.Enter(this, handler);
-
             _timeout = s_defaultTimeout;
             _maxResponseContentBufferSize = HttpContent.MaxBufferSize;
             _pendingRequestsCts = new CancellationTokenSource();
-
-            if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
         }
 
         #endregion Constructors
@@ -703,7 +699,7 @@ namespace System.Net.Http
             }
         }
 
-        private Uri CreateUri(String uri)
+        private Uri CreateUri(string uri)
         {
             if (string.IsNullOrEmpty(uri))
             {

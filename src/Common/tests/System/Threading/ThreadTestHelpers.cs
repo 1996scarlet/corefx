@@ -2,6 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Diagnostics;
+using System.Threading.Tasks;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
 namespace System.Threading.Tests
@@ -10,6 +13,11 @@ namespace System.Threading.Tests
     {
         public const int ExpectedTimeoutMilliseconds = 50;
         public const int UnexpectedTimeoutMilliseconds = 1000 * 30;
+
+        // Wait longer for a thread to time out, so that an unexpected timeout in the thread is more likely to expire first and
+        // provide a better stack trace for the failure
+        public const int UnexpectedThreadTimeoutMilliseconds =
+            UnexpectedTimeoutMilliseconds + RemoteExecutor.FailWaitTimeoutMilliseconds;
 
         public static Thread CreateGuardedThread(out Action waitForThread, Action start)
         {
@@ -45,7 +53,7 @@ namespace System.Threading.Tests
             waitForThread =
                 () =>
                 {
-                    Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
+                    Assert.True(t.Join(UnexpectedThreadTimeoutMilliseconds));
                     localCheckForThreadErrors();
                 };
             return t;
@@ -85,7 +93,7 @@ namespace System.Threading.Tests
             waitForThread =
                 () =>
                 {
-                    Assert.True(t.Join(UnexpectedTimeoutMilliseconds));
+                    Assert.True(t.Join(UnexpectedThreadTimeoutMilliseconds));
                     localCheckForThreadErrors();
                 };
             return t;
@@ -98,6 +106,11 @@ namespace System.Threading.Tests
             t.IsBackground = true;
             t.Start();
             waitForThread();
+        }
+
+        public static void RunTestInBackgroundThread(Func<Task> test)
+        {
+            RunTestInBackgroundThread(() => test().Wait());
         }
 
         public static void WaitForCondition(Func<bool> condition)
@@ -128,6 +141,11 @@ namespace System.Threading.Tests
         public static void CheckedWait(this ManualResetEventSlim e)
         {
             Assert.True(e.Wait(UnexpectedTimeoutMilliseconds));
+        }
+
+        public static void CheckedWait(this Task t)
+        {
+            Assert.True(t.Wait(UnexpectedTimeoutMilliseconds));
         }
     }
 }

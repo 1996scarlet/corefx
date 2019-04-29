@@ -16,18 +16,18 @@ namespace System.Net.Mail
 
         public SmtpFailedRecipientsException()
         {
-            _innerExceptions = new SmtpFailedRecipientException[0];
+            _innerExceptions = Array.Empty<SmtpFailedRecipientException>();
         }
 
         public SmtpFailedRecipientsException(string message) : base(message)
         {
-            _innerExceptions = new SmtpFailedRecipientException[0];
+            _innerExceptions = Array.Empty<SmtpFailedRecipientException>();
         }
 
         public SmtpFailedRecipientsException(string message, Exception innerException) : base(message, innerException)
         {
             SmtpFailedRecipientException smtpException = innerException as SmtpFailedRecipientException;
-            _innerExceptions = smtpException == null ? new SmtpFailedRecipientException[0] : new SmtpFailedRecipientException[] { smtpException };
+            _innerExceptions = smtpException == null ? Array.Empty<SmtpFailedRecipientException>() : new SmtpFailedRecipientException[] { smtpException };
         }
 
         protected SmtpFailedRecipientsException(SerializationInfo info, StreamingContext context) : base(info, context)
@@ -44,11 +44,11 @@ namespace System.Net.Mail
                 throw new ArgumentNullException(nameof(innerExceptions));
             }
 
-            _innerExceptions = innerExceptions == null ? new SmtpFailedRecipientException[0] : innerExceptions;
+            _innerExceptions = innerExceptions == null ? Array.Empty<SmtpFailedRecipientException>() : innerExceptions;
         }
 
         internal SmtpFailedRecipientsException(List<SmtpFailedRecipientException> innerExceptions, bool allFailed) :
-            base(allFailed ? SR.Format(SR.SmtpAllRecipientsFailed) : SR.Format(SR.SmtpRecipientFailed),
+            base(allFailed ? SR.SmtpAllRecipientsFailed : SR.SmtpRecipientFailed,
             innerExceptions != null && innerExceptions.Count > 0 ? innerExceptions[0].FailedRecipient : null,
             innerExceptions != null && innerExceptions.Count > 0 ? innerExceptions[0] : null)
         {

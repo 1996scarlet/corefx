@@ -13,6 +13,7 @@
 
 //This class contains only static members and doesn't require serialization.
 
+#nullable enable
 using System.Diagnostics;
 using System.Runtime;
 using System.Runtime.CompilerServices;
@@ -28,7 +29,7 @@ namespace System
 
         private const int maxRoundingDigits = 15;
 
-        private static double doubleRoundLimit = 1e16d;
+        private const double doubleRoundLimit = 1e16d;
 
         // This table is required for the Round function which can specify the number of digits to round to
         private static double[] roundPower10Double = new double[] {
@@ -96,7 +97,7 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static decimal Abs(decimal value)
         {
-            return decimal.Abs(ref value);
+            return decimal.Abs(value);
         }
 
         [StackTraceHidden]
@@ -108,6 +109,76 @@ namespace System
         public static long BigMul(int a, int b)
         {
             return ((long)a) * b;
+        }
+
+        public static double BitDecrement(double x)
+        {
+            var bits = BitConverter.DoubleToInt64Bits(x);
+
+            if (((bits >> 32) & 0x7FF00000) >= 0x7FF00000)
+            {
+                // NaN returns NaN
+                // -Infinity returns -Infinity
+                // +Infinity returns double.MaxValue
+                return (bits == 0x7FF00000_00000000) ? double.MaxValue : x;
+            }
+
+            if (bits == 0x00000000_00000000)
+            {
+                // +0.0 returns -double.Epsilon
+                return -double.Epsilon;
+            }
+
+            // Negative values need to be incremented
+            // Positive values need to be decremented
+
+            bits += ((bits < 0) ? +1 : -1);
+            return BitConverter.Int64BitsToDouble(bits);
+        }
+
+        public static double BitIncrement(double x)
+        {
+            var bits = BitConverter.DoubleToInt64Bits(x);
+
+            if (((bits >> 32) & 0x7FF00000) >= 0x7FF00000)
+            {
+                // NaN returns NaN
+                // -Infinity returns double.MinValue
+                // +Infinity returns +Infinity
+                return (bits == unchecked((long)(0xFFF00000_00000000))) ? double.MinValue : x;
+            }
+
+            if (bits == unchecked((long)(0x80000000_00000000)))
+            {
+                // -0.0 returns double.Epsilon
+                return double.Epsilon;
+            }
+
+            // Negative values need to be decremented
+            // Positive values need to be incremented
+
+            bits += ((bits < 0) ? -1 : +1);
+            return BitConverter.Int64BitsToDouble(bits);
+        }
+
+        public static unsafe double CopySign(double x, double y)
+        {
+            // This method is required to work for all inputs,
+            // including NaN, so we operate on the raw bits.
+
+            var xbits = BitConverter.DoubleToInt64Bits(x);
+            var ybits = BitConverter.DoubleToInt64Bits(y);
+
+            // If the sign bits of x and y are not the same,
+            // flip the sign bit of x and return the new value;
+            // otherwise, just return x
+
+            if ((xbits ^ ybits) < 0)
+            {
+                return BitConverter.Int64BitsToDouble(xbits ^ long.MinValue);
+            }
+
+            return x;
         }
 
         public static int DivRem(int a, int b, out int result)
@@ -123,11 +194,21 @@ namespace System
 
         public static long DivRem(long a, long b, out long result)
         {
-            // TODO https://github.com/dotnet/coreclr/issues/3439:
-            // Restore to using % and / when the JIT is able to eliminate one of the idivs.
-            // In the meantime, a * and - is measurably faster than an extra /.
-
             long div = a / b;
+            result = a - (div * b);
+            return div;
+        }
+
+        internal static uint DivRem(uint a, uint b, out uint result)
+        {
+            uint div = a / b;
+            result = a - (div * b);
+            return div;
+        }
+
+        internal static ulong DivRem(ulong a, ulong b, out ulong result)
+        {
+            ulong div = a / b;
             result = a - (div * b);
             return div;
         }
@@ -453,19 +534,25 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static decimal Max(decimal val1, decimal val2)
         {
-            return decimal.Max(ref val1, ref val2);
+            return decimal.Max(val1, val2);
         }
 
         public static double Max(double val1, double val2)
         {
-            if (val1 > val2)
+            // This matches the IEEE 754:2019 `maximum` function
+            //
+            // It propagates NaN inputs back to the caller and
+            // otherwise returns the larger of the inputs. It
+            // treats +0 as larger than -0 as per the specification.
+
+            if ((val1 > val2) || double.IsNaN(val1))
             {
                 return val1;
             }
 
-            if (double.IsNaN(val1))
+            if (val1 == val2)
             {
-                return val1;
+                return double.IsNegative(val1) ? val2 : val1;
             }
 
             return val2;
@@ -498,14 +585,20 @@ namespace System
         
         public static float Max(float val1, float val2)
         {
-            if (val1 > val2)
+            // This matches the IEEE 754:2019 `maximum` function
+            //
+            // It propagates NaN inputs back to the caller and
+            // otherwise returns the larger of the inputs. It
+            // treats +0 as larger than -0 as per the specification.
+
+            if ((val1 > val2) || float.IsNaN(val1))
             {
                 return val1;
             }
 
-            if (float.IsNaN(val1))
+            if (val1 == val2)
             {
-                return val1;
+                return float.IsNegative(val1) ? val2 : val1;
             }
 
             return val2;
@@ -532,6 +625,30 @@ namespace System
             return (val1 >= val2) ? val1 : val2;
         }
 
+        public static double MaxMagnitude(double x, double y)
+        {
+            // This matches the IEEE 754:2019 `maximumMagnitude` function
+            //
+            // It propagates NaN inputs back to the caller and
+            // otherwise returns the input with a larger magnitude.
+            // It treats +0 as larger than -0 as per the specification.
+
+            double ax = Abs(x);
+            double ay = Abs(y);
+
+            if ((ax > ay) || double.IsNaN(ax))
+            {
+                return x;
+            }
+
+            if (ax == ay)
+            {
+                return double.IsNegative(x) ? y : x;
+            }
+
+            return y;
+        }
+
         [NonVersionable]
         public static byte Min(byte val1, byte val2)
         {
@@ -541,19 +658,25 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static decimal Min(decimal val1, decimal val2)
         {
-            return decimal.Min(ref val1, ref val2);
+            return decimal.Min(val1, val2);
         }
 
         public static double Min(double val1, double val2)
         {
-            if (val1 < val2)
+            // This matches the IEEE 754:2019 `minimum` function
+            //
+            // It propagates NaN inputs back to the caller and
+            // otherwise returns the larger of the inputs. It
+            // treats +0 as larger than -0 as per the specification.
+
+            if ((val1 < val2) || double.IsNaN(val1))
             {
                 return val1;
             }
 
-            if (double.IsNaN(val1))
+            if (val1 == val2)
             {
-                return val1;
+                return double.IsNegative(val1) ? val1 : val2;
             }
 
             return val2;
@@ -586,14 +709,20 @@ namespace System
 
         public static float Min(float val1, float val2)
         {
-            if (val1 < val2)
+            // This matches the IEEE 754:2019 `minimum` function
+            //
+            // It propagates NaN inputs back to the caller and
+            // otherwise returns the larger of the inputs. It
+            // treats +0 as larger than -0 as per the specification.
+
+            if ((val1 < val2) || float.IsNaN(val1))
             {
                 return val1;
             }
 
-            if (float.IsNaN(val1))
+            if (val1 == val2)
             {
-                return val1;
+                return float.IsNegative(val1) ? val1 : val2;
             }
 
             return val2;
@@ -618,6 +747,30 @@ namespace System
         public static ulong Min(ulong val1, ulong val2)
         {
             return (val1 <= val2) ? val1 : val2;
+        }
+
+        public static double MinMagnitude(double x, double y)
+        {
+            // This matches the IEEE 754:2019 `minimumMagnitude` function
+            //
+            // It propagates NaN inputs back to the caller and
+            // otherwise returns the input with a larger magnitude.
+            // It treats +0 as larger than -0 as per the specification.
+
+            double ax = Abs(x);
+            double ay = Abs(y);
+
+            if ((ax < ay) || double.IsNaN(ax))
+            {
+                return x;
+            }
+
+            if (ax == ay)
+            {
+                return double.IsNegative(x) ? x : y;
+            }
+
+            return y;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -670,7 +823,7 @@ namespace System
                 flrTempVal -= 1.0;
             }
 
-            return copysign(flrTempVal, a);
+            return CopySign(flrTempVal, a);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -692,7 +845,7 @@ namespace System
                 throw new ArgumentOutOfRangeException(nameof(digits), SR.ArgumentOutOfRange_RoundingDigits);
             }
 
-            if (mode < MidpointRounding.ToEven || mode > MidpointRounding.AwayFromZero)
+            if (mode < MidpointRounding.ToEven || mode > MidpointRounding.ToPositiveInfinity)
             {
                 throw new ArgumentException(SR.Format(SR.Argument_InvalidEnumValue, mode, nameof(MidpointRounding)), nameof(mode));
             }
@@ -703,20 +856,52 @@ namespace System
 
                 value *= power10;
 
-                if (mode == MidpointRounding.AwayFromZero)
+                switch (mode)
                 {
-                    var fraction = ModF(value, &value);
-
-                    if (Abs(fraction) >= 0.5)
+                    // Rounds to the nearest value; if the number falls midway,
+                    // it is rounded to the nearest value with an even least significant digit
+                    case MidpointRounding.ToEven:
                     {
-                        value += Sign(fraction);
+                        value = Round(value);
+                        break;
+                    }
+                    // Rounds to the nearest value; if the number falls midway,
+                    // it is rounded to the nearest value above (for positive numbers) or below (for negative numbers)
+                    case MidpointRounding.AwayFromZero:
+                    {
+                        double fraction = ModF(value, &value);
+
+                        if (Abs(fraction) >= 0.5)
+                        {
+                            value += Sign(fraction);
+                        }
+
+                        break;
+                    }
+                    // Directed rounding: Round to the nearest value, toward to zero
+                    case MidpointRounding.ToZero:
+                    {
+                        value = Truncate(value);
+                        break;
+                    }
+                    // Directed Rounding: Round down to the next value, toward negative infinity
+                    case MidpointRounding.ToNegativeInfinity:
+                    {
+                        value = Floor(value);
+                        break;
+                    }
+                    // Directed rounding: Round up to the next value, toward positive infinity
+                    case MidpointRounding.ToPositiveInfinity:
+                    {  
+                        value = Ceiling(value);
+                        break;
+                    }
+                    default:
+                    {
+                        throw new ArgumentException(SR.Format(SR.Argument_InvalidEnumValue, mode, nameof(MidpointRounding)), nameof(mode));
                     }
                 }
-                else
-                {
-                    value = Round(value);
-                }
-
+                
                 value /= power10;
             }
 
@@ -726,7 +911,7 @@ namespace System
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Sign(decimal value)
         {
-            return decimal.Sign(ref value);
+            return decimal.Sign(value);
         }
 
         public static int Sign(double value)
@@ -798,23 +983,6 @@ namespace System
         {
             ModF(d, &d);
             return d;
-        }
-
-        private static unsafe double copysign(double x, double y)
-        {
-            var xbits = BitConverter.DoubleToInt64Bits(x);
-            var ybits = BitConverter.DoubleToInt64Bits(y);
-
-            // If the sign bits of x and y are not the same,
-            // flip the sign bit of x and return the new value;
-            // otherwise, just return x
-
-            if (((xbits ^ ybits) >> 63) != 0)
-            {
-                return BitConverter.Int64BitsToDouble(xbits ^ long.MinValue);
-            }
-
-            return x;
         }
 
         private static void ThrowMinMaxException<T>(T min, T max)

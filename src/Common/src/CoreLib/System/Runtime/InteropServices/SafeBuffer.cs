@@ -65,8 +65,7 @@
 // static variable (perhaps using Interlocked.CompareExchange).  Of course,
 // assignments in a static class constructor are under a lock implicitly.
 
-using System;
-using System.Diagnostics;
+#nullable enable
 using System.Runtime.CompilerServices;
 using Internal.Runtime.CompilerServices;
 using Microsoft.Win32.SafeHandles;
@@ -77,7 +76,7 @@ namespace System.Runtime.InteropServices
     {
         // Steal UIntPtr.MaxValue as our uninitialized value.
         private static readonly UIntPtr Uninitialized = (UIntPtr.Size == 4) ?
-            ((UIntPtr)UInt32.MaxValue) : ((UIntPtr)UInt64.MaxValue);
+            ((UIntPtr)uint.MaxValue) : ((UIntPtr)ulong.MaxValue);
 
         private UIntPtr _numBytes;
 
@@ -94,7 +93,7 @@ namespace System.Runtime.InteropServices
         [CLSCompliant(false)]
         public void Initialize(ulong numBytes)
         {
-            if (IntPtr.Size == 4 && numBytes > UInt32.MaxValue)
+            if (IntPtr.Size == 4 && numBytes > uint.MaxValue)
                 throw new ArgumentOutOfRangeException(nameof(numBytes), SR.ArgumentOutOfRange_AddressSpace);
 
             if (numBytes >= (ulong)Uninitialized)
@@ -110,13 +109,7 @@ namespace System.Runtime.InteropServices
         [CLSCompliant(false)]
         public void Initialize(uint numElements, uint sizeOfEachElement)
         {
-            if (IntPtr.Size == 4 && numElements * sizeOfEachElement > UInt32.MaxValue)
-                throw new ArgumentOutOfRangeException("numBytes", SR.ArgumentOutOfRange_AddressSpace);
-
-            if (numElements * sizeOfEachElement >= (ulong)Uninitialized)
-                throw new ArgumentOutOfRangeException(nameof(numElements), SR.ArgumentOutOfRange_UIntPtrMax);
-
-            _numBytes = checked((UIntPtr)(numElements * sizeOfEachElement));
+            Initialize((ulong)numElements * sizeOfEachElement);
         }
 
         /// <summary>
@@ -198,7 +191,7 @@ namespace System.Runtime.InteropServices
             SpaceCheck(ptr, sizeofT);
 
             // return *(T*) (_ptr + byteOffset);
-            T value = default(T);
+            T value = default;
             bool mustCallRelease = false;
             try
             {

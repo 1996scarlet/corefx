@@ -2,7 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Collections.Generic;
 using System.Globalization;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
 namespace System.Tests
@@ -10,8 +12,31 @@ namespace System.Tests
     public partial class DecimalTests
     {
         [Theory]
-        [MemberData(nameof(Parse_Valid_TestData))]
-        public static void Parse_Span_Valid(string value, NumberStyles style, IFormatProvider provider, decimal expected)
+        [InlineData(MidpointRounding.ToEven - 1)]
+        [InlineData(MidpointRounding.ToPositiveInfinity + 1)]
+        public void Round_InvalidMidpointRounding_ThrowsArgumentException(MidpointRounding mode)
+        {
+            AssertExtensions.Throws<ArgumentException>("mode", () => decimal.Round(1, 2, mode));
+        }
+
+        public static IEnumerable<object[]> Parse_ValidWithOffsetCount_TestData()
+        {
+            foreach (object[] inputs in Parse_Valid_TestData())
+            {
+                yield return new object[] { inputs[0], 0, ((string)inputs[0]).Length, inputs[1], inputs[2], inputs[3] };
+            }
+
+            yield return new object[] { "-123", 1, 3, NumberStyles.Number, null, 123m };
+            yield return new object[] { "-123", 0, 3, NumberStyles.Number, null, -12m };
+            yield return new object[] { 1000.ToString("N0"), 0, 4, NumberStyles.AllowThousands, null, 100m };
+            yield return new object[] { 1000.ToString("N0"), 2, 3, NumberStyles.AllowThousands, null, 0m };
+            yield return new object[] { "(123)", 1, 3, NumberStyles.AllowParentheses, new NumberFormatInfo() { NumberDecimalSeparator = "." }, 123m };
+            yield return new object[] { "1234567890123456789012345.678456", 1, 4, NumberStyles.Number, new NumberFormatInfo() { NumberDecimalSeparator = "." }, 2345m };
+        }
+
+        [Theory]
+        [MemberData(nameof(Parse_ValidWithOffsetCount_TestData))]
+        public static void Parse_Span_Valid(string value, int offset, int count, NumberStyles style, IFormatProvider provider, decimal expected)
         {
             bool isDefaultProvider = provider == null || provider == NumberFormatInfo.CurrentInfo;
             decimal result;
@@ -20,18 +45,18 @@ namespace System.Tests
                 // Use Parse(string) or Parse(string, IFormatProvider)
                 if (isDefaultProvider)
                 {
-                    Assert.True(decimal.TryParse(value.AsSpan(), out result));
+                    Assert.True(decimal.TryParse(value.AsSpan(offset, count), out result));
                     Assert.Equal(expected, result);
 
-                    Assert.Equal(expected, decimal.Parse(value.AsSpan()));
+                    Assert.Equal(expected, decimal.Parse(value.AsSpan(offset, count)));
                 }
 
-                Assert.Equal(expected, decimal.Parse(value.AsSpan(), provider: provider));
+                Assert.Equal(expected, decimal.Parse(value.AsSpan(offset, count), provider: provider));
             }
 
-            Assert.Equal(expected, decimal.Parse(value.AsSpan(), style, provider));
+            Assert.Equal(expected, decimal.Parse(value.AsSpan(offset, count), style, provider));
 
-            Assert.True(decimal.TryParse(value.AsSpan(), style, provider, out result));
+            Assert.True(decimal.TryParse(value.AsSpan(offset, count), style, provider, out result));
             Assert.Equal(expected, result);
         }
 
@@ -51,7 +76,7 @@ namespace System.Tests
         [Fact]
         public static void TryFormat()
         {
-            RemoteInvoke(() =>
+            RemoteExecutor.Invoke(() =>
             {
                 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
@@ -108,7 +133,7 @@ namespace System.Tests
                     }
                 }
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }).Dispose();
         }
     }

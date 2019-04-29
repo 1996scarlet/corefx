@@ -8,15 +8,18 @@ using System.Net.Test.Common;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace System.Net.Http.Functional.Tests
 {
-    public abstract class HttpProtocolTests : HttpClientTestBase
+    public abstract class HttpProtocolTests : HttpClientHandlerTestBase
     {
         protected virtual Stream GetStream(Stream s) => s;
         protected virtual Stream GetStream_ClientDisconnectOk(Stream s) => s;
 
-        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap)] // Uap does not support 1.0
+        public HttpProtocolTests(ITestOutputHelper output) : base(output) { }
+
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "Uap does not support 1.0")]
         [Fact]
         public async Task GetAsync_RequestVersion10_Success()
         {
@@ -154,7 +157,7 @@ namespace System.Net.Http.Functional.Tests
                     Task<HttpResponseMessage> getResponseTask = client.SendAsync(request);
                     Task<List<string>> serverTask =
                         server.AcceptConnectionSendCustomResponseAndCloseAsync(
-                            $"HTTP/1.{responseMinorVersion} 200 OK\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
+                            $"HTTP/1.{responseMinorVersion} 200 OK\r\nConnection: close\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
 
                     await TestHelper.WhenAllCompletedOrAnyFailed(getResponseTask, serverTask);
 
@@ -185,7 +188,7 @@ namespace System.Net.Http.Functional.Tests
                     Task<HttpResponseMessage> getResponseTask = client.SendAsync(request);
                     Task<List<string>> serverTask =
                         server.AcceptConnectionSendCustomResponseAndCloseAsync(
-                            $"HTTP/1.{responseMinorVersion} 200 OK\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
+                            $"HTTP/1.{responseMinorVersion} 200 OK\r\nConnection: close\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
 
                     await TestHelper.WhenAllCompletedOrAnyFailed(getResponseTask, serverTask);
 
@@ -211,7 +214,7 @@ namespace System.Net.Http.Functional.Tests
             }, new LoopbackServer.Options { StreamWrapper = GetStream });
         }
 
-        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap)] // Uap ignores response version if not 1.0 or 1.1
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "Uap ignores response version if not 1.0 or 1.1")]
         [Theory]
         [InlineData(0)]
         [InlineData(1)]
@@ -230,7 +233,7 @@ namespace System.Net.Http.Functional.Tests
                     Task<HttpResponseMessage> getResponseTask = client.SendAsync(request);
                     Task<List<string>> serverTask =
                         server.AcceptConnectionSendCustomResponseAndCloseAsync(
-                            $"HTTP/0.{responseMinorVersion} 200 OK\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
+                            $"HTTP/0.{responseMinorVersion} 200 OK\r\nConnection: close\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
 
                     if (reportAs10)
                     {
@@ -250,7 +253,7 @@ namespace System.Net.Http.Functional.Tests
             }, new LoopbackServer.Options { StreamWrapper = GetStream_ClientDisconnectOk });
         }
 
-        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap)] // Uap ignores response version if not 1.0 or 1.1
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "Uap ignores response version if not 1.0 or 1.1")]
         [Theory]
         [InlineData(2, 0)]
         [InlineData(2, 1)]
@@ -286,7 +289,7 @@ namespace System.Net.Http.Functional.Tests
                     Task<HttpResponseMessage> getResponseTask = client.SendAsync(request);
                     Task<List<string>> serverTask =
                         server.AcceptConnectionSendCustomResponseAndCloseAsync(
-                            $"HTTP/{responseMajorVersion}.{responseMinorVersion} 200 OK\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
+                            $"HTTP/{responseMajorVersion}.{responseMinorVersion} 200 OK\r\nConnection: close\r\nDate: {DateTimeOffset.UtcNow:R}\r\nContent-Length: 0\r\n\r\n");
 
                     if (reportAs00)
                     {
@@ -390,6 +393,7 @@ namespace System.Net.Http.Functional.Tests
                         getResponseTask,
                         server.AcceptConnectionSendCustomResponseAndCloseAsync(
                             $"{statusLine}\r\n" +
+                            "Connection: close\r\n" +
                             $"Date: {DateTimeOffset.UtcNow:R}\r\n" +
                             "Content-Length: 0\r\n" +
                             "\r\n"));
@@ -409,7 +413,7 @@ namespace System.Net.Http.Functional.Tests
             yield return "HTTP/X.Y.Z 200 OK";
             
             // Only pass on .NET Core Windows & SocketsHttpHandler.
-            if (PlatformDetection.IsNetCore && PlatformDetection.IsWindows)
+            if (PlatformDetection.IsNetCore && !PlatformDetection.IsUap && PlatformDetection.IsWindows)
             {
                 yield return "HTTP/0.1 200 OK";
                 yield return "HTTP/3.5 200 OK";
@@ -500,7 +504,7 @@ namespace System.Net.Http.Functional.Tests
                 using (HttpClient client = CreateHttpClient())
                 {
                     Task ignoredServerTask = server.AcceptConnectionSendCustomResponseAndCloseAsync(
-                        responseString + "\r\nContent-Length: 0\r\n\r\n");
+                        responseString + "\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
 
                     await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(url));
                 }
@@ -519,7 +523,7 @@ namespace System.Net.Http.Functional.Tests
                 {
                     Task<HttpResponseMessage> getResponseTask = client.GetAsync(url);
                     Task<List<string>> serverTask = server.AcceptConnectionSendCustomResponseAndCloseAsync(
-                        $"HTTP/1.1 200 OK{lineEnding}Date: {DateTimeOffset.UtcNow:R}{lineEnding}Server: TestServer{lineEnding}Content-Length: 0{lineEnding}{lineEnding}");
+                        $"HTTP/1.1 200 OK{lineEnding}Connection: close\r\nDate: {DateTimeOffset.UtcNow:R}{lineEnding}Server: TestServer{lineEnding}Content-Length: 0{lineEnding}{lineEnding}");
 
                     await TestHelper.WhenAllCompletedOrAnyFailed(getResponseTask, serverTask);
 
@@ -607,10 +611,42 @@ namespace System.Net.Http.Functional.Tests
                 });
             });
         }
+
+        [ActiveIssue(29802, TargetFrameworkMonikers.Uap)]
+        [Theory]
+        [InlineData("get", "GET")]
+        [InlineData("head", "HEAD")]
+        [InlineData("post", "POST")]
+        [InlineData("put", "PUT")]
+        [InlineData("other", "other")]
+        [InlineData("SometHING", "SometHING")]
+        public async Task CustomMethod_SentUppercasedIfKnown(string specifiedMethod, string expectedMethod)
+        {
+            if (IsCurlHandler && specifiedMethod == "get")
+            {
+                // CurlHandler doesn't special-case "get" and sends it in the original casing.
+                expectedMethod = specifiedMethod;
+            }
+
+            await LoopbackServer.CreateClientAndServerAsync(async uri =>
+            {
+                using (var client = CreateHttpClient())
+                {
+                    var m = new HttpRequestMessage(new HttpMethod(specifiedMethod), uri);
+                    (await client.SendAsync(m)).Dispose();
+                }
+            }, async server =>
+            {
+                List<string> headers = await server.AcceptConnectionSendResponseAndCloseAsync();
+                Assert.StartsWith(expectedMethod + " ", headers[0]);
+            });
+        }
     }
 
     public abstract class HttpProtocolTests_Dribble : HttpProtocolTests
     {
+        public HttpProtocolTests_Dribble(ITestOutputHelper output) : base(output) { }
+
         protected override Stream GetStream(Stream s) => new DribbleStream(s);
         protected override Stream GetStream_ClientDisconnectOk(Stream s) => new DribbleStream(s, true);
     }

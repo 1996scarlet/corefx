@@ -17,10 +17,11 @@ namespace System.Collections.Generic
     //
     // The basic idea of a red-black tree is to represent 2-3-4 trees as standard BSTs but to add one extra bit of information
     // per node to encode 3-nodes and 4-nodes.
-    // 4-nodes will be represented as:          B
-    //                                                              R            R
-    // 3 -node will be represented as:           B             or         B
-    //                                                              R          B               B       R
+    // 4-nodes will be represented as:   B
+    //                                 R   R
+    //
+    // 3 -node will be represented as:   B     or     B
+    //                                 R   B        B   R
     //
     // For a detailed description of the algorithm, take a look at "Algorithms" by Robert Sedgewick.
 
@@ -53,8 +54,7 @@ namespace System.Collections.Generic
         private IComparer<T> comparer;
         private int count;
         private int version;
-        [NonSerialized]
-        private object _syncRoot;
+
         private SerializationInfo siInfo; // A temporary variable which we need during deserialization.
 
         private const string ComparerName = "Comparer"; // Do not rename (binary serialization)
@@ -281,7 +281,7 @@ namespace System.Collections.Generic
         {
             get
             {
-                VersionCheck();
+                VersionCheck(updateCount: true);
                 return count;
             }
         }
@@ -292,25 +292,16 @@ namespace System.Collections.Generic
 
         bool ICollection.IsSynchronized => false;
 
-        object ICollection.SyncRoot
-        {
-            get
-            {
-                if (_syncRoot == null)
-                {
-                    Interlocked.CompareExchange(ref _syncRoot, new object(), null);
-                }
-
-                return _syncRoot;
-            }
-        }
+        object ICollection.SyncRoot => this;
 
         #endregion
 
         #region Subclass helpers
 
         // Virtual function for TreeSubSet, which may need to update its count.
-        internal virtual void VersionCheck() { }
+        internal virtual void VersionCheck(bool updateCount = false) { }
+        // Virtual function for TreeSubSet, which may need the count variable of the parent set.
+        internal virtual int TotalCount() { return Count; }
 
         // Virtual function for TreeSubSet, which may need to do range checks.
         internal virtual bool IsWithinRange(T item) => true;
@@ -677,7 +668,7 @@ namespace System.Collections.Generic
         /// </summary>
         /// <param name="parent">The (possibly <c>null</c>) parent.</param>
         /// <param name="child">The child node to replace.</param>
-        /// <param name="newChild">The node to replace <paramref name="child"> with.</param>
+        /// <param name="newChild">The node to replace <paramref name="child"/> with.</param>
         private void ReplaceChildOrRoot(Node parent, Node child, Node newChild)
         {
             if (parent != null)
@@ -895,7 +886,7 @@ namespace System.Collections.Generic
             if (treeSubset != null)
                 VersionCheck();
 
-            if (asSorted != null && treeSubset == null && count == 0)
+            if (asSorted != null && treeSubset == null && Count == 0)
             {
                 SortedSet<T> dummy = new SortedSet<T>(asSorted, comparer);
                 root = dummy.root;
@@ -1458,17 +1449,10 @@ namespace System.Collections.Generic
             int originalLastIndex = Count;
             int intArrayLength = BitHelper.ToIntArrayLength(originalLastIndex);
 
-            BitHelper bitHelper;
-            if (intArrayLength <= StackAllocThreshold)
-            {
-                int* bitArrayPtr = stackalloc int[intArrayLength];
-                bitHelper = new BitHelper(bitArrayPtr, intArrayLength);
-            }
-            else
-            {
-                int[] bitArray = new int[intArrayLength];
-                bitHelper = new BitHelper(bitArray, intArrayLength);
-            }
+            Span<int> span = stackalloc int[StackAllocThreshold];
+            BitHelper bitHelper = intArrayLength <= StackAllocThreshold ?
+                new BitHelper(span.Slice(0, intArrayLength), clear: true) :
+                new BitHelper(new int[intArrayLength], clear: false);
 
             // count of items in other not found in this
             int UnfoundCount = 0;
@@ -1950,7 +1934,7 @@ namespace System.Collections.Generic
                 _version = set.version;
 
                 // 2 log(n + 1) is the maximum height.
-                _stack = new Stack<Node>(2 * (int)Log2(set.Count + 1));
+                _stack = new Stack<Node>(2 * (int)Log2(set.TotalCount() + 1));
                 _current = null;
                 _reverse = reverse;
 

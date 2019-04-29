@@ -15,17 +15,11 @@ namespace System.Net.Http.Functional.Tests
 {
     using Configuration = System.Net.Test.Common.Configuration;
 
-    [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "dotnet/corefx #20010")]
-    public abstract class ResponseStreamTest : HttpClientTestBase
+    public abstract class ResponseStreamTest : HttpClientHandlerTestBase
     {
-        private readonly ITestOutputHelper _output;
-        
-        public ResponseStreamTest(ITestOutputHelper output)
-        {
-            _output = output;
-        }
+        public ResponseStreamTest(ITestOutputHelper output) : base(output) { }
 
-        [OuterLoop] // TODO: Issue #11345
+        [OuterLoop("Uses external server")]
         [Theory]
         [InlineData(0)]
         [InlineData(1)]
@@ -33,6 +27,8 @@ namespace System.Net.Http.Functional.Tests
         [InlineData(3)]
         [InlineData(4)]
         [InlineData(5)]
+        [InlineData(6)]
+        [InlineData(7)]
         public async Task GetStreamAsync_ReadToEnd_Success(int readMode)
         {
             using (HttpClient client = CreateHttpClient())
@@ -88,6 +84,22 @@ namespace System.Net.Http.Functional.Tests
                             break;
 
                         case 5:
+                            // ReadByte
+                            int byteValue;
+                            while ((byteValue = stream.ReadByte()) != -1)
+                            {
+                                ms.WriteByte((byte)byteValue);
+                            }
+                            responseBody = Encoding.UTF8.GetString(ms.ToArray());
+                            break;
+
+                        case 6:
+                            // CopyTo
+                            stream.CopyTo(ms);
+                            responseBody = Encoding.UTF8.GetString(ms.ToArray());
+                            break;
+
+                        case 7:
                             // CopyToAsync
                             await stream.CopyToAsync(ms);
                             responseBody = Encoding.UTF8.GetString(ms.ToArray());
@@ -106,7 +118,7 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
+        [OuterLoop("Uses external server")]
         [Fact]
         public async Task GetAsync_UseResponseHeadersReadAndCallLoadIntoBuffer_Success()
         {
@@ -125,7 +137,7 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
+        [OuterLoop("Uses external server")]
         [Fact]
         public async Task GetAsync_UseResponseHeadersReadAndCopyToMemoryStream_Success()
         {
@@ -149,7 +161,7 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
+        [OuterLoop("Uses external server")]
         [Fact]
         public async Task GetStreamAsync_ReadZeroBytes_Success()
         {
@@ -162,7 +174,7 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
+        [OuterLoop("Uses external server")]
         [Fact]
         public async Task ReadAsStreamAsync_Cancel_TaskIsCanceled()
         {
@@ -206,7 +218,7 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
-        [OuterLoop] // TODO: Issue #11345
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "WinRT based Http stack ignores these errors")]
         [Theory]
         [InlineData(TransferType.ContentLength, TransferError.ContentLengthTooLarge)]
         [InlineData(TransferType.Chunked, TransferError.MissingChunkTerminator)]
@@ -221,7 +233,6 @@ namespace System.Net.Http.Functional.Tests
             });
         }
 
-        [OuterLoop] // TODO: Issue #11345
         [Theory]
         [InlineData(TransferType.None, TransferError.None)]
         [InlineData(TransferType.ContentLength, TransferError.None)]

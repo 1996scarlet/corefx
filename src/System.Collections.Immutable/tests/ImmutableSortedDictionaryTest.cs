@@ -12,7 +12,7 @@ using Xunit;
 
 namespace System.Collections.Immutable.Tests
 {
-    public class ImmutableSortedDictionaryTest : ImmutableDictionaryTestBase
+    public partial class ImmutableSortedDictionaryTest : ImmutableDictionaryTestBase
     {
         private enum Operation
         {
@@ -313,7 +313,7 @@ namespace System.Collections.Immutable.Tests
             var map = ImmutableSortedDictionary.Create<string, string>()
                 .Add("firstKey", "1").Add("secondKey", "2");
             var exception = AssertExtensions.Throws<ArgumentException>(null, () => map.Add("firstKey", "3"));
-            if (!PlatformDetection.IsNetNative) //.Net Native toolchain removes exception messages.
+            if (!PlatformDetection.IsNetNative) //.NET Native toolchain removes exception messages.
             {
                 Assert.Contains("firstKey", exception.Message);
             }
@@ -524,11 +524,6 @@ namespace System.Collections.Immutable.Tests
         protected override IEqualityComparer<TValue> GetValueComparer<TKey, TValue>(IImmutableDictionary<TKey, TValue> dictionary)
         {
             return ((ImmutableSortedDictionary<TKey, TValue>)dictionary).ValueComparer;
-        }
-
-        internal override IBinaryTree GetRootNode<TKey, TValue>(IImmutableDictionary<TKey, TValue> dictionary)
-        {
-            return ((ImmutableSortedDictionary<TKey, TValue>)dictionary).Root;
         }
 
         protected void ContainsValueTestHelper<TKey, TValue>(ImmutableSortedDictionary<TKey, TValue> map, TKey key, TValue value)

@@ -50,6 +50,12 @@ namespace System.Tests
             public OneStruct oneStruct;
         }
 
+        class ClassWithReadOnlyField
+        {
+            public readonly OneStruct Value;
+            public ClassWithReadOnlyField(OneStruct value) => Value = value;
+        }
+
         [Fact]
         public static void NegativeMakeTypedReference()
         {
@@ -57,7 +63,7 @@ namespace System.Tests
             Type dataType = data.GetType();
             Assert.Throws<ArgumentNullException>(() => { TypedReference.MakeTypedReference(null, dataType.GetFields()); });
             Assert.Throws<ArgumentNullException>(() => { TypedReference.MakeTypedReference(data, null); });
-            AssertExtensions.Throws<ArgumentException>(null, () => { TypedReference.MakeTypedReference(data, Array.Empty<FieldInfo>()); });
+            AssertExtensions.Throws<ArgumentException>("flds", null, () => { TypedReference.MakeTypedReference(data, Array.Empty<FieldInfo>()); });
             AssertExtensions.Throws<ArgumentException>(null, () => { TypedReference.MakeTypedReference(data, new FieldInfo[] { dataType.GetField("oneStruct"), null }); });
             AssertExtensions.Throws<ArgumentException>(null, () => { TypedReference.MakeTypedReference(data, new FieldInfo[] { dataType.GetField("oneStruct"), typeof(OneStruct).GetField("b") }); });
         }
@@ -73,6 +79,16 @@ namespace System.Tests
 
             reference = TypedReference.MakeTypedReference(data, new FieldInfo[] { dataType.GetField("oneStruct") });
             Assert.Equal(structObj, TypedReference.ToObject(reference));
+        }
+
+        [SkipOnTargetFramework(~TargetFrameworkMonikers.Netcoreapp, "https://github.com/dotnet/coreclr/pull/21193")]
+        [Fact]
+        public static void MakeTypedReference_ReadOnlyField_Succeeds()
+        {
+            var os = new OneStruct() { b = 42, field = "data" };
+            var c = new ClassWithReadOnlyField(os);
+            TypedReference tr = TypedReference.MakeTypedReference(c, new FieldInfo[] { c.GetType().GetField("Value") }); // doesn't throw
+            Assert.Equal(os, TypedReference.ToObject(tr));
         }
 
 #if !uapaot  // ActiveIssue UapAot TFS 430781 - __makeref causes ILC fatal error.

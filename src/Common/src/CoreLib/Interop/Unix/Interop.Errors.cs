@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System;
 using System.Runtime.InteropServices;
 
@@ -75,11 +76,13 @@ internal static partial class Interop
         ENOTCONN         = 0x10038,           // The socket is not connected.
         ENOTDIR          = 0x10039,           // Not a directory or a symbolic link to a directory.
         ENOTEMPTY        = 0x1003A,           // Directory not empty.
+        ENOTRECOVERABLE  = 0x1003B,           // State not recoverable.
         ENOTSOCK         = 0x1003C,           // Not a socket.
         ENOTSUP          = 0x1003D,           // Not supported (same value as EOPNOTSUP).
         ENOTTY           = 0x1003E,           // Inappropriate I/O control operation.
         ENXIO            = 0x1003F,           // No such device or address.
         EOVERFLOW        = 0x10040,           // Value too large to be stored in data type.
+        EOWNERDEAD       = 0x10041,           // Previous owner died.
         EPERM            = 0x10042,           // Operation not permitted.
         EPIPE            = 0x10043,           // Broken pipe.
         EPROTO           = 0x10044,           // Protocol error.
@@ -98,6 +101,9 @@ internal static partial class Interop
         ESHUTDOWN        = 0x1006C,           // Socket shutdown.
         EHOSTDOWN        = 0x10070,           // Host is down.
         ENODATA          = 0x10071,           // No data available.
+
+        // Custom Error codes to track errors beyond kernel interface.
+        EHOSTNOTFOUND    = 0x20001,           // Name lookup failed
 
         // POSIX permits these to have the same value and we make them always equal so
         // that CoreFX cannot introduce a dependency on distinguishing between them that
@@ -140,11 +146,11 @@ internal static partial class Interop
             return Interop.Sys.StrError(RawErrno);
         }
 
+#pragma warning disable CS8609 // TODO-NULLABLE: https://github.com/dotnet/roslyn/issues/23268
         public override string ToString()
+#pragma warning restore CS8609
         {
-            return string.Format(
-                "RawErrno: {0} Error: {1} GetErrorMessage: {2}", // No localization required; text is member names used for debugging purposes
-                RawErrno, Error, GetErrorMessage());
+            return $"RawErrno: {RawErrno} Error: {Error} GetErrorMessage: {GetErrorMessage()}"; // No localization required; text is member names used for debugging purposes
         }
     }
 
@@ -176,7 +182,7 @@ internal static partial class Interop
                 message = buffer;
             }
 
-            return Marshal.PtrToStringAnsi((IntPtr)message);
+            return Marshal.PtrToStringAnsi((IntPtr)message)!;
         }
 
         [DllImport(Libraries.SystemNative, EntryPoint = "SystemNative_ConvertErrorPlatformToPal")]

@@ -91,8 +91,15 @@ namespace System.ComponentModel.Composition
 
         public static MetadataViewFactory GetMetadataViewFactory(Type viewType)
         {
-            Assumes.NotNull(viewType);
-            Assumes.IsTrue(viewType.IsInterface);
+            if(viewType == null)
+            {
+                throw new ArgumentNullException(nameof(viewType));
+            }
+
+            if(!viewType.IsInterface)
+            {
+                throw new Exception(SR.Diagnostic_InternalExceptionMessage);
+            }
 
             MetadataViewFactory metadataViewFactory;
             bool foundMetadataViewFactory;
@@ -107,11 +114,17 @@ namespace System.ComponentModel.Composition
             {
                 // Try again under a write lock if still none generate the proxy
                 Type generatedProxyType = GenerateInterfaceViewProxyType(viewType);
-                Assumes.NotNull(generatedProxyType);
+                if(generatedProxyType == null)
+                {
+                    throw new Exception(SR.Diagnostic_InternalExceptionMessage);
+                }
 
                 MetadataViewFactory generatedMetadataViewFactory = (MetadataViewFactory)Delegate.CreateDelegate(
                     typeof(MetadataViewFactory), generatedProxyType.GetMethod(MetadataViewGenerator.MetadataViewFactoryName, BindingFlags.Public | BindingFlags.Static));
-                Assumes.NotNull(generatedMetadataViewFactory);
+                if(generatedMetadataViewFactory == null)
+                {
+                    throw new Exception(SR.Diagnostic_InternalExceptionMessage);
+                }
 
                 using (new WriteLock(_lock))
                 {
@@ -127,7 +140,10 @@ namespace System.ComponentModel.Composition
 
         public static TMetadataView CreateMetadataView<TMetadataView>(MetadataViewFactory metadataViewFactory, IDictionary<string, object> metadata)
         {
-            Assumes.NotNull(metadataViewFactory);
+            if(metadataViewFactory == null)
+            {
+                throw new ArgumentNullException(nameof(metadataViewFactory));
+            }
             // we are simulating the Activator.CreateInstance behavior by wrapping everything in a TargetInvocationException
             try
             {
@@ -202,7 +218,7 @@ namespace System.ComponentModel.Composition
                 string fieldName = string.Format(CultureInfo.InvariantCulture, "_{0}_{1}", propertyInfo.Name, Guid.NewGuid());
 
                 // Cache names and type for exception
-                string propertyName = string.Format(CultureInfo.InvariantCulture, "{0}", propertyInfo.Name);
+                string propertyName = propertyInfo.Name;
 
                 Type[] propertyTypeArguments = new Type[] { propertyInfo.PropertyType };
                 Type[] optionalModifiers = null;
@@ -296,7 +312,7 @@ namespace System.ComponentModel.Composition
                 if (propertyInfo.CanWrite)
                 {
                     // The MetadataView '{0}' is invalid because property '{1}' has a property set method.
-                    throw new NotSupportedException(string.Format(CultureInfo.CurrentCulture,
+                    throw new NotSupportedException(SR.Format(
                         SR.InvalidSetterOnMetadataField,
                         viewType,
                         propertyName));
@@ -305,7 +321,7 @@ namespace System.ComponentModel.Composition
                 {
                     // Generate "get" method implementation.
                     MethodBuilder getMethodBuilder = proxyTypeBuilder.DefineMethod(
-                        string.Format(CultureInfo.InvariantCulture, "get_{0}", propertyName),
+                        "get_" + propertyName,
                         MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.NewSlot | MethodAttributes.Virtual | MethodAttributes.Final,
                         CallingConventions.HasThis,
                         propertyInfo.PropertyType,
@@ -364,7 +380,7 @@ namespace System.ComponentModel.Composition
             factoryIL.Emit(OpCodes.Ret);
 
             // Finished implementing the type
-            proxyType = proxyTypeBuilder.CreateType();
+            proxyType = proxyTypeBuilder.CreateTypeInfo();
 
             return proxyType;
         }

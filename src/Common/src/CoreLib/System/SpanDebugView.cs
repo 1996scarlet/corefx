@@ -2,9 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Diagnostics;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace System
 {
@@ -14,7 +13,7 @@ namespace System
 
         public SpanDebugView(Span<T> span)
         {
-           _array = span.ToArray();
+            _array = span.ToArray();
         }
 
         public SpanDebugView(ReadOnlySpan<T> span)

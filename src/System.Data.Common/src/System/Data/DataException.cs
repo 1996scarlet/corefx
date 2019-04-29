@@ -643,7 +643,7 @@ namespace System.Data
         //
         // Storage
         //
-        public static Exception AggregateException(AggregateType aggregateType, Type type) => _Data(SR.Format(SR.DataStorage_AggregateException, aggregateType.ToString(), type.Name));
+        public static Exception AggregateException(AggregateType aggregateType, Type type) => _Data(SR.Format(SR.DataStorage_AggregateException, aggregateType, type.Name));
         public static Exception InvalidStorageType(TypeCode typecode) => _Data(SR.Format(SR.DataStorage_InvalidStorageType, typecode.ToString()));
         public static Exception RangeArgument(int min, int max) => _Argument(SR.Format(SR.Range_Argument, (min).ToString(CultureInfo.InvariantCulture), (max).ToString(CultureInfo.InvariantCulture)));
         public static Exception NullRange() => _Data(SR.Range_NullRange);
@@ -679,10 +679,10 @@ namespace System.Data
         public static Exception ColumnTypeConflict(string name) => _Data(SR.Format(SR.Xml_ColumnConflict, name));
         public static Exception CannotConvert(string name, string type) => _Data(SR.Format(SR.Xml_CannotConvert, name, type));
         public static Exception MissingRefer(string name) => _Data(SR.Format(SR.Xml_MissingRefer, Keywords.REFER, Keywords.XSD_KEYREF, name));
-        public static Exception InvalidPrefix(string name) => _Data(SR.Format(SR.Xml_InvalidPrefix, name));
+        public static Exception InvalidPrefix(string name) => _Data(SR.Format(SR.Xml_InvalidPrefix_SpecialCharacters, name));
         public static Exception CanNotDeserializeObjectType() => _InvalidOperation(SR.Xml_CanNotDeserializeObjectType);
         public static Exception IsDataSetAttributeMissingInSchema() => _Data(SR.Xml_IsDataSetAttributeMissingInSchema);
-        public static Exception TooManyIsDataSetAtributeInSchema() => _Data(SR.Xml_TooManyIsDataSetAtributeInSchema);
+        public static Exception TooManyIsDataSetAttributesInSchema() => _Data(SR.Xml_TooManyIsDataSetAttributesInSchema);
 
         // XML save
         public static Exception NestedCircular(string name) => _Data(SR.Format(SR.Xml_NestedCircular, name));

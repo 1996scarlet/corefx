@@ -18,16 +18,18 @@
 // Reflection will use 0x1600 -> 0x161f.  IO will use 0x1620 -> 0x163f.
 // Security will use 0x1640 -> 0x165f
 
-
+#nullable enable
 using System;
 
 namespace System
 {
     internal static partial class HResults
     {
+        internal const int S_OK = unchecked((int)0x00000000);
+        internal const int S_FALSE = unchecked((int)0x1);
         internal const int COR_E_ABANDONEDMUTEX = unchecked((int)0x8013152D);
+        internal const int COR_E_AMBIGUOUSIMPLEMENTATION = unchecked((int)0x8013106A);
         internal const int COR_E_AMBIGUOUSMATCH = unchecked((int)0x8000211D);
-        internal const int COR_E_APPDOMAINUNLOADED = unchecked((int)0x80131014);
         internal const int COR_E_APPLICATION = unchecked((int)0x80131600);
         internal const int COR_E_ARGUMENT = unchecked((int)0x80070057);
         internal const int COR_E_ARGUMENTOUTOFRANGE = unchecked((int)0x80131502);
@@ -36,6 +38,7 @@ namespace System
         internal const int COR_E_BADEXEFORMAT = unchecked((int)0x800700C1);
         internal const int COR_E_BADIMAGEFORMAT = unchecked((int)0x8007000B);
         internal const int COR_E_CANNOTUNLOADAPPDOMAIN = unchecked((int)0x80131015);
+        internal const int COR_E_CODECONTRACTFAILED = unchecked((int)0x80131542);
         internal const int COR_E_COMEMULATE = unchecked((int)0x80131535);
         internal const int COR_E_CONTEXTMARSHAL = unchecked((int)0x80131504);
         internal const int COR_E_CUSTOMATTRIBUTEFORMAT = unchecked((int)0x80131605);
@@ -122,5 +125,7 @@ namespace System
         internal const int ERROR_MRM_MAP_NOT_FOUND = unchecked((int)0x80073B1F);
         internal const int RO_E_CLOSED = unchecked((int)0x80000013);
         internal const int TYPE_E_TYPEMISMATCH = unchecked((int)0x80028CA0);
+        internal const int CO_E_NOTINITIALIZED = unchecked((int)0x800401F0);
+        internal const int RPC_E_CHANGED_MODE = unchecked((int)0x80010106);
     }
 }

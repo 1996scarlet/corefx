@@ -3,15 +3,16 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Http;
+using System.Net.Http.WinHttpHandlerUnitTests;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 using Xunit.Abstractions;
-using System.Diagnostics;
-using System.Net.Http.WinHttpHandlerUnitTests;
 
 namespace System.Net.Http.Tests
 {
-    public class HttpSystemProxyTest : RemoteExecutorTestBase
+    public class HttpSystemProxyTest
     {
         private readonly ITestOutputHelper _output;
         private const string FakeProxyString = "http://proxy.contoso.com";
@@ -43,7 +44,7 @@ namespace System.Net.Http.Tests
         [InlineData("https=https://proxy.secure.com", false, true)]
         public void HttpProxy_SystemProxy_Loaded(string rawProxyString, bool hasInsecureProxy, bool hasSecureProxy)
         {
-            RemoteInvoke((proxyString, insecureProxy, secureProxy) =>
+            RemoteExecutor.Invoke((proxyString, insecureProxy, secureProxy) =>
             {
                 IWebProxy p;
 
@@ -60,8 +61,31 @@ namespace System.Net.Http.Tests
                 Assert.Equal(Boolean.Parse(secureProxy) ? new Uri(secureProxyUri) : null, p.GetProxy(new Uri(fooHttps)));
                 Assert.Equal(Boolean.Parse(insecureProxy) ? new Uri(insecureProxyUri) : null, p.GetProxy(new Uri(fooWs)));
                 Assert.Equal(Boolean.Parse(secureProxy) ? new Uri(secureProxyUri) : null, p.GetProxy(new Uri(fooWss)));
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }, rawProxyString, hasInsecureProxy.ToString(), hasSecureProxy.ToString()).Dispose();
+        }
+
+        [Theory]
+        [InlineData("localhost:1234", "http://localhost:1234/")]
+        [InlineData("123.123.123.123", "http://123.123.123.123/")]
+        public void HttpProxy_SystemProxy_Loaded(string rawProxyString, string expectedUri)
+        {
+            RemoteExecutor.Invoke((proxyString, expectedString) =>
+            {
+                IWebProxy p;
+
+                FakeRegistry.Reset();
+
+                FakeRegistry.WinInetProxySettings.Proxy = proxyString;
+                WinInetProxyHelper proxyHelper = new WinInetProxyHelper();
+
+                Assert.True(HttpSystemProxy.TryCreate(out p));
+                Assert.NotNull(p);
+                Assert.Equal(expectedString, p.GetProxy(new Uri(fooHttp)).ToString());
+                Assert.Equal(expectedString, p.GetProxy(new Uri(fooHttps)).ToString());
+
+                return RemoteExecutor.SuccessExitCode;
+            }, rawProxyString, expectedUri).Dispose();
         }
 
         [Theory]
@@ -84,7 +108,7 @@ namespace System.Net.Http.Tests
         [InlineData("http://www.b\u00e9b\u00e9.eu/", true)]
         public void HttpProxy_Local_Bypassed(string name, bool shouldBypass)
         {
-            RemoteInvoke((url, expected) =>
+            RemoteExecutor.Invoke((url, expected) =>
             {
                 bool expectedResult = Boolean.Parse(expected);
                 IWebProxy p;
@@ -99,7 +123,7 @@ namespace System.Net.Http.Tests
                 Uri u = new Uri(url);
                 Assert.Equal(expectedResult, p.GetProxy(u) == null);
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
            }, name, shouldBypass.ToString()).Dispose();
         }
 
@@ -111,7 +135,7 @@ namespace System.Net.Http.Tests
         [InlineData("[::]", 1)]
         public void HttpProxy_Local_Parsing(string bypass, int count)
         {
-            RemoteInvoke((bypassValue, expected) =>
+            RemoteExecutor.Invoke((bypassValue, expected) =>
             {
                 int expectedCount = Convert.ToInt32(expected);
                 IWebProxy p;
@@ -134,7 +158,7 @@ namespace System.Net.Http.Tests
                 {
                     Assert.Null(sp.BypassList);
                 }
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
            }, bypass, count.ToString()).Dispose();
         }
 
@@ -144,10 +168,9 @@ namespace System.Net.Http.Tests
         [InlineData("http://;")]
         [InlineData("http=;")]
         [InlineData("  ;  ")]
-        [InlineData("proxy.contoso.com")]
         public void HttpProxy_InvalidSystemProxy_Null(string rawProxyString)
         {
-            RemoteInvoke((proxyString) =>
+            RemoteExecutor.Invoke((proxyString) =>
             {
                 IWebProxy p;
 
@@ -164,7 +187,7 @@ namespace System.Net.Http.Tests
                 Assert.Equal(null, p.GetProxy(new Uri(fooHttps)));
                 Assert.Equal(null, p.GetProxy(new Uri(fooWs)));
                 Assert.Equal(null, p.GetProxy(new Uri(fooWss)));
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }, rawProxyString).Dispose();
         }
     }

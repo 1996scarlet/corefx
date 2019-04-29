@@ -17,9 +17,9 @@ namespace System.Net.Http
     internal static class ConnectHelper
     {
         /// <summary>Pool of event args to use to establish connections.</summary>
-        private static readonly ConcurrentQueue<ConnectEventArgs>.Segment s_connectEventArgs =
-            new ConcurrentQueue<ConnectEventArgs>.Segment(
-                ConcurrentQueue<ConnectEventArgs>.Segment.RoundUpToPowerOf2(Math.Max(2, Environment.ProcessorCount)));
+        private static readonly ConcurrentQueueSegment<ConnectEventArgs> s_connectEventArgs =
+            new ConcurrentQueueSegment<ConnectEventArgs>(
+                ConcurrentQueueSegment<ConnectEventArgs>.RoundUpToPowerOf2(Math.Max(2, Environment.ProcessorCount)));
 
         /// <summary>
         /// Helper type used by HttpClientHandler when wrapping SocketsHttpHandler to map its
@@ -38,7 +38,7 @@ namespace System.Net.Http
             }
         }
 
-        public static async ValueTask<(Socket, Stream)> ConnectAsync(string host, int port, CancellationToken cancellationToken)
+        public static async ValueTask<Stream> ConnectAsync(string host, int port, CancellationToken cancellationToken)
         {
             // Rather than creating a new Socket and calling ConnectAsync on it, we use the static
             // Socket.ConnectAsync with a SocketAsyncEventArgs, as we can then use Socket.CancelConnectAsync
@@ -54,9 +54,7 @@ namespace System.Net.Http
                 saea.Initialize(cancellationToken);
 
                 // Configure which server to which to connect.
-                saea.RemoteEndPoint = IPAddress.TryParse(host, out IPAddress address) ?
-                    (EndPoint)new IPEndPoint(address, port) :
-                    new DnsEndPoint(host, port);
+                saea.RemoteEndPoint = new DnsEndPoint(host, port);
 
                 // Initiate the connection.
                 if (Socket.ConnectAsync(SocketType.Stream, ProtocolType.Tcp, saea))
@@ -79,7 +77,7 @@ namespace System.Net.Http
                 // Configure the socket and return a stream for it.
                 Socket socket = saea.ConnectSocket;
                 socket.NoDelay = true;
-                return (socket, new NetworkStream(socket, ownsSocket: true));
+                return new ExposedSocketNetworkStream(socket, ownsSocket: true);
             }
             catch (Exception error)
             {

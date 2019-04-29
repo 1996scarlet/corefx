@@ -2,10 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Buffers;
-using System.Diagnostics;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -305,20 +302,20 @@ namespace System.Net.Sockets
 #endif
         }
 
-        public override int Read(Span<byte> destination)
+        public override int Read(Span<byte> buffer)
         {
             if (GetType() != typeof(NetworkStream))
             {
                 // NetworkStream is not sealed, and a derived type may have overridden Read(byte[], int, int) prior
                 // to this Read(Span<byte>) overload being introduced.  In that case, this Read(Span<byte>) overload
                 // should use the behavior of Read(byte[],int,int) overload.
-                return base.Read(destination);
+                return base.Read(buffer);
             }
 
             if (_cleanedUp) throw new ObjectDisposedException(GetType().FullName);
             if (!CanRead) throw new InvalidOperationException(SR.net_writeonlystream);
 
-            int bytesRead = _streamSocket.Receive(destination, SocketFlags.None, out SocketError errorCode);
+            int bytesRead = _streamSocket.Receive(buffer, SocketFlags.None, out SocketError errorCode);
             if (errorCode != SocketError.Success)
             {
                 var exception = new SocketException((int)errorCode);
@@ -396,21 +393,21 @@ namespace System.Net.Sockets
 #endif
         }
 
-        public override void Write(ReadOnlySpan<byte> source)
+        public override void Write(ReadOnlySpan<byte> buffer)
         {
             if (GetType() != typeof(NetworkStream))
             {
                 // NetworkStream is not sealed, and a derived type may have overridden Write(byte[], int, int) prior
                 // to this Write(ReadOnlySpan<byte>) overload being introduced.  In that case, this Write(ReadOnlySpan<byte>)
                 // overload should use the behavior of Write(byte[],int,int) overload.
-                base.Write(source);
+                base.Write(buffer);
                 return;
             }
 
             if (_cleanedUp) throw new ObjectDisposedException(GetType().FullName);
             if (!CanWrite) throw new InvalidOperationException(SR.net_readonlystream);
 
-            _streamSocket.Send(source, SocketFlags.None, out SocketError errorCode);
+            _streamSocket.Send(buffer, SocketFlags.None, out SocketError errorCode);
             if (errorCode != SocketError.Success)
             {
                 var exception = new SocketException((int)errorCode);
@@ -495,7 +492,7 @@ namespace System.Net.Sockets
         // Returns:
         // 
         //     An IASyncResult, representing the read.
-        public override IAsyncResult BeginRead(byte[] buffer, int offset, int size, AsyncCallback callback, Object state)
+        public override IAsyncResult BeginRead(byte[] buffer, int offset, int size, AsyncCallback callback, object state)
         {
 #if DEBUG
             using (DebugThreadTracking.SetThreadKind(ThreadKinds.User | ThreadKinds.Async))
@@ -600,7 +597,7 @@ namespace System.Net.Sockets
         // Returns:
         // 
         //     An IASyncResult, representing the write.
-        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int size, AsyncCallback callback, Object state)
+        public override IAsyncResult BeginWrite(byte[] buffer, int offset, int size, AsyncCallback callback, object state)
         {
 #if DEBUG
             using (DebugThreadTracking.SetThreadKind(ThreadKinds.User | ThreadKinds.Async))
@@ -846,7 +843,7 @@ namespace System.Net.Sockets
                 return _streamSocket.SendAsyncForNetworkStream(
                     buffer,
                     SocketFlags.None,
-                    cancellationToken: cancellationToken);
+                    cancellationToken);
             }
             catch (Exception exception) when (!(exception is OutOfMemoryException))
             {

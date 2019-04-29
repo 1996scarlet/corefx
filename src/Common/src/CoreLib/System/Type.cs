@@ -102,8 +102,6 @@ namespace System
         public bool IsContextful => IsContextfulImpl();
         protected virtual bool IsContextfulImpl() => false;
 
-        public virtual bool IsCollectible => true;
-
         public virtual bool IsEnum => IsSubclassOf(typeof(Enum));
         public bool IsMarshalByRef => IsMarshalByRefImpl();
         protected virtual bool IsMarshalByRefImpl() => false;
@@ -283,8 +281,9 @@ namespace System
         }
         protected virtual TypeCode GetTypeCodeImpl()
         {
-            if (this != UnderlyingSystemType && UnderlyingSystemType != null)
-                return Type.GetTypeCode(UnderlyingSystemType);
+            Type systemType = UnderlyingSystemType;
+            if (this != systemType && systemType != null)
+                return Type.GetTypeCode(systemType);
 
             return TypeCode.Object;
         }
@@ -346,6 +345,8 @@ namespace System
         public virtual Type MakeGenericType(params Type[] typeArguments) { throw new NotSupportedException(SR.NotSupported_SubclassOverride); }
         public virtual Type MakePointerType() { throw new NotSupportedException(); }
 
+        public static Type MakeGenericSignatureType(Type genericTypeDefinition, params Type[] typeArguments) => new SignatureConstructedGenericType(genericTypeDefinition, typeArguments);
+
         public static Type MakeGenericMethodParameter(int position)
         {
             if (position < 0)
@@ -387,8 +388,8 @@ namespace System
         public static readonly object Missing = System.Reflection.Missing.Value;
 
         public static readonly MemberFilter FilterAttribute = FilterAttributeImpl;
-        public static readonly MemberFilter FilterName = FilterNameImpl;
-        public static readonly MemberFilter FilterNameIgnoreCase = FilterNameIgnoreCaseImpl;
+        public static readonly MemberFilter FilterName = (m, c) => FilterNameImpl(m, c, StringComparison.Ordinal);
+        public static readonly MemberFilter FilterNameIgnoreCase = (m, c) => FilterNameImpl(m, c, StringComparison.OrdinalIgnoreCase);
 
         private const BindingFlags DefaultLookup = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public;
     }

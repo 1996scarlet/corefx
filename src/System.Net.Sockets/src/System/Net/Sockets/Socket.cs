@@ -10,6 +10,7 @@ using System.IO;
 using System.Net.Internals;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace System.Net.Sockets
@@ -19,7 +20,7 @@ namespace System.Net.Sockets
     {
         internal const int DefaultCloseTimeout = -1; // NOTE: changing this default is a breaking change.
 
-        private SafeCloseSocket _handle;
+        private SafeSocketHandle _handle;
 
         // _rightEndPoint is null if the socket has not been bound.  Otherwise, it is any EndPoint of the
         // correct type (IPEndPoint, etc).
@@ -115,7 +116,7 @@ namespace System.Net.Sockets
         }
 
         // Called by the class to create a socket to accept an incoming request.
-        private Socket(SafeCloseSocket fd)
+        private Socket(SafeSocketHandle fd)
         {
             // NOTE: If this ctor is ever made public/protected, this check will need
             // to be converted into a runtime exception.
@@ -137,9 +138,9 @@ namespace System.Net.Sockets
 
         // The CLR allows configuration of these properties, separately from whether the OS supports IPv4/6.  We
         // do not provide these config options, so SupportsIPvX === OSSupportsIPvX.
-        [Obsolete("SupportsIPv4 is obsoleted for this type, please use OSSupportsIPv4 instead. http://go.microsoft.com/fwlink/?linkid=14202")]
+        [Obsolete("SupportsIPv4 is obsoleted for this type, please use OSSupportsIPv4 instead. https://go.microsoft.com/fwlink/?linkid=14202")]
         public static bool SupportsIPv4 => OSSupportsIPv4;
-        [Obsolete("SupportsIPv6 is obsoleted for this type, please use OSSupportsIPv6 instead. http://go.microsoft.com/fwlink/?linkid=14202")]
+        [Obsolete("SupportsIPv6 is obsoleted for this type, please use OSSupportsIPv6 instead. https://go.microsoft.com/fwlink/?linkid=14202")]
         public static bool SupportsIPv6 => OSSupportsIPv6;
 
         public static bool OSSupportsIPv4
@@ -288,7 +289,7 @@ namespace System.Net.Sockets
             }
         }
 
-        internal SafeCloseSocket SafeHandle
+        public SafeSocketHandle SafeHandle
         {
             get
             {
@@ -1063,7 +1064,7 @@ namespace System.Net.Sockets
             Internals.SocketAddress socketAddress = IPEndPointExtensions.Serialize(_rightEndPoint);
 
             // This may throw ObjectDisposedException.
-            SafeCloseSocket acceptedSocketHandle;
+            SafeSocketHandle acceptedSocketHandle;
             SocketError errorCode = SocketPal.Accept(
                 _handle,
                 socketAddress.Buffer,
@@ -1853,9 +1854,9 @@ namespace System.Net.Sockets
                 {
                     throw new ArgumentException(SR.Format(SR.net_sockets_invalid_optionValue, "LingerOption"), nameof(optionValue));
                 }
-                if (lingerOption.LingerTime < 0 || lingerOption.LingerTime > (int)UInt16.MaxValue)
+                if (lingerOption.LingerTime < 0 || lingerOption.LingerTime > (int)ushort.MaxValue)
                 {
-                    throw new ArgumentException(SR.Format(SR.ArgumentOutOfRange_Bounds_Lower_Upper, 0, (int)UInt16.MaxValue), "optionValue.LingerTime");
+                    throw new ArgumentException(SR.Format(SR.ArgumentOutOfRange_Bounds_Lower_Upper, 0, (int)ushort.MaxValue), "optionValue.LingerTime");
                 }
                 SetLingerOption(lingerOption);
             }
@@ -1991,7 +1992,7 @@ namespace System.Net.Sockets
         {
             if (level == IPProtectionLevel.Unspecified)
             {
-                throw new ArgumentException(SR.Format(SR.net_sockets_invalid_optionValue_all), nameof(level));
+                throw new ArgumentException(SR.net_sockets_invalid_optionValue_all, nameof(level));
             }
 
             if (_addressFamily == AddressFamily.InterNetworkV6)
@@ -2040,15 +2041,15 @@ namespace System.Net.Sockets
             const int MaxSelect = 65536;
             if (checkRead != null && checkRead.Count > MaxSelect)
             {
-                throw new ArgumentOutOfRangeException(nameof(checkRead), SR.Format(SR.net_sockets_toolarge_select, nameof(checkRead), MaxSelect.ToString(NumberFormatInfo.CurrentInfo)));
+                throw new ArgumentOutOfRangeException(nameof(checkRead), SR.Format(SR.net_sockets_toolarge_select, nameof(checkRead), MaxSelect.ToString()));
             }
             if (checkWrite != null && checkWrite.Count > MaxSelect)
             {
-                throw new ArgumentOutOfRangeException(nameof(checkWrite), SR.Format(SR.net_sockets_toolarge_select, nameof(checkWrite), MaxSelect.ToString(NumberFormatInfo.CurrentInfo)));
+                throw new ArgumentOutOfRangeException(nameof(checkWrite), SR.Format(SR.net_sockets_toolarge_select, nameof(checkWrite), MaxSelect.ToString()));
             }
             if (checkError != null && checkError.Count > MaxSelect)
             {
-                throw new ArgumentOutOfRangeException(nameof(checkError), SR.Format(SR.net_sockets_toolarge_select, nameof(checkError), MaxSelect.ToString(NumberFormatInfo.CurrentInfo)));
+                throw new ArgumentOutOfRangeException(nameof(checkError), SR.Format(SR.net_sockets_toolarge_select, nameof(checkError), MaxSelect.ToString()));
             }
 
             SocketError errorCode = SocketPal.Select(checkRead, checkWrite, checkError, microSeconds);
@@ -3636,7 +3637,7 @@ namespace System.Net.Sockets
                 throw new InvalidOperationException(SR.net_sockets_mustlisten);
             }
 
-            SafeCloseSocket acceptHandle;
+            SafeSocketHandle acceptHandle;
             asyncResult.AcceptSocket = GetOrCreateAcceptSocket(acceptSocket, false, nameof(acceptSocket), out acceptHandle);
 
             if (NetEventSource.IsEnabled) NetEventSource.Info(this, $"AcceptSocket:{acceptSocket}");
@@ -3792,7 +3793,7 @@ namespace System.Net.Sockets
             }
 
             // Handle AcceptSocket property.
-            SafeCloseSocket acceptHandle;
+            SafeSocketHandle acceptHandle;
             e.AcceptSocket = GetOrCreateAcceptSocket(e.AcceptSocket, true, "AcceptSocket", out acceptHandle);
 
             // Prepare for and make the native call.
@@ -3815,7 +3816,10 @@ namespace System.Net.Sockets
             return pending;
         }
 
-        public bool ConnectAsync(SocketAsyncEventArgs e)
+        public bool ConnectAsync(SocketAsyncEventArgs e) =>
+            ConnectAsync(e, userSocket: true);
+
+        private bool ConnectAsync(SocketAsyncEventArgs e, bool userSocket)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
             bool pending;
@@ -3862,12 +3866,20 @@ namespace System.Net.Sockets
                     throw new NotSupportedException(SR.net_invalidversion);
                 }
 
-                MultipleConnectAsync multipleConnectAsync = new SingleSocketMultipleConnectAsync(this, true);
+                MultipleConnectAsync multipleConnectAsync = new SingleSocketMultipleConnectAsync(this, userSocket: true);
 
                 e.StartOperationCommon(this, SocketAsyncOperation.Connect);
-                e.StartOperationConnect(multipleConnectAsync);
+                e.StartOperationConnect(multipleConnectAsync, userSocket: true);
 
-                pending = multipleConnectAsync.StartConnectAsync(e, dnsEP);
+                try
+                {
+                    pending = multipleConnectAsync.StartConnectAsync(e, dnsEP);
+                }
+                catch
+                {
+                    e.Complete(); // Clear in-use flag on event args object.
+                    throw;
+                }
             }
             else
             {
@@ -3903,7 +3915,7 @@ namespace System.Net.Sockets
 
                 // Prepare for the native call.
                 e.StartOperationCommon(this, SocketAsyncOperation.Connect);
-                e.StartOperationConnect();
+                e.StartOperationConnect(multipleConnect: null, userSocket);
 
                 // Make the native call.
                 SocketError socketError = SocketError.Success;
@@ -3962,18 +3974,26 @@ namespace System.Net.Sockets
                 else
                 {
                     attemptSocket = new Socket(dnsEP.AddressFamily, socketType, protocolType);
-                    multipleConnectAsync = new SingleSocketMultipleConnectAsync(attemptSocket, false);
+                    multipleConnectAsync = new SingleSocketMultipleConnectAsync(attemptSocket, userSocket: false);
                 }
 
                 e.StartOperationCommon(attemptSocket, SocketAsyncOperation.Connect);
-                e.StartOperationConnect(multipleConnectAsync);
+                e.StartOperationConnect(multipleConnectAsync, userSocket: false);
 
-                pending = multipleConnectAsync.StartConnectAsync(e, dnsEP);
+                try
+                {
+                    pending = multipleConnectAsync.StartConnectAsync(e, dnsEP);
+                }
+                catch
+                {
+                    e.Complete(); // Clear in-use flag on event args object.
+                    throw;
+                }
             }
             else
             {
                 Socket attemptSocket = new Socket(endPointSnapshot.AddressFamily, socketType, protocolType);
-                pending = attemptSocket.ConnectAsync(e);
+                pending = attemptSocket.ConnectAsync(e, userSocket: false);
             }
 
             if (NetEventSource.IsEnabled) NetEventSource.Exit(null, pending);
@@ -4018,7 +4038,9 @@ namespace System.Net.Sockets
             return retval;
         }
 
-        public bool ReceiveAsync(SocketAsyncEventArgs e)
+        public bool ReceiveAsync(SocketAsyncEventArgs e) => ReceiveAsync(e, default(CancellationToken));
+
+        private bool ReceiveAsync(SocketAsyncEventArgs e, CancellationToken cancellationToken)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
 
@@ -4037,7 +4059,7 @@ namespace System.Net.Sockets
             SocketError socketError;
             try
             {
-                socketError = e.DoOperationReceive(_handle);
+                socketError = e.DoOperationReceive(_handle, cancellationToken);
             }
             catch
             {
@@ -4066,7 +4088,7 @@ namespace System.Net.Sockets
             }
             if (e.RemoteEndPoint == null)
             {
-                throw new ArgumentNullException("RemoteEndPoint");
+                throw new ArgumentNullException(nameof(e.RemoteEndPoint));
             }
             if (!CanTryAddressFamily(e.RemoteEndPoint.AddressFamily))
             {
@@ -4119,7 +4141,7 @@ namespace System.Net.Sockets
             }
             if (e.RemoteEndPoint == null)
             {
-                throw new ArgumentNullException("RemoteEndPoint");
+                throw new ArgumentNullException(nameof(e.RemoteEndPoint));
             }
             if (!CanTryAddressFamily(e.RemoteEndPoint.AddressFamily))
             {
@@ -4159,7 +4181,9 @@ namespace System.Net.Sockets
             return pending;
         }
 
-        public bool SendAsync(SocketAsyncEventArgs e)
+        public bool SendAsync(SocketAsyncEventArgs e) => SendAsync(e, default(CancellationToken));
+
+        private bool SendAsync(SocketAsyncEventArgs e, CancellationToken cancellationToken)
         {
             if (NetEventSource.IsEnabled) NetEventSource.Enter(this, e);
 
@@ -4178,7 +4202,7 @@ namespace System.Net.Sockets
             SocketError socketError;
             try
             {
-                socketError = e.DoOperationSend(_handle);
+                socketError = e.DoOperationSend(_handle, cancellationToken);
             }
             catch
             {
@@ -4452,15 +4476,8 @@ namespace System.Net.Sockets
                 catch (Exception exception) when (!ExceptionCheck.IsFatal(exception)) { }
             }
 
-            // Make sure we're the first call to Dispose and no SetAsyncEventSelect is in progress.
-            int last;
-            SpinWait sw = new SpinWait();
-            while ((last = Interlocked.CompareExchange(ref _intCleanedUp, 1, 0)) == 2)
-            {
-                sw.SpinOnce();
-            }
-
-            if (last == 1)
+            // Make sure we're the first call to Dispose
+            if (Interlocked.CompareExchange(ref _intCleanedUp, 1, 0) == 1)
             {
                 if (NetEventSource.IsEnabled) NetEventSource.Exit(this);
                 return;
@@ -5076,7 +5093,7 @@ namespace System.Net.Sockets
         }
 
         // CreateAcceptSocket - pulls unmanaged results and assembles them into a new Socket object.
-        internal Socket CreateAcceptSocket(SafeCloseSocket fd, EndPoint remoteEP)
+        internal Socket CreateAcceptSocket(SafeSocketHandle fd, EndPoint remoteEP)
         {
             // Internal state of the socket is inherited from listener.
             Debug.Assert(fd != null && !fd.IsInvalid);

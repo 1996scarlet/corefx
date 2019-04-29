@@ -54,7 +54,7 @@ namespace System.Diagnostics.Tracing
                     position++;
                 }
 
-                throw new System.Collections.Generic.KeyNotFoundException(SR.Format(SR.Arg_KeyNotFoundWithKey, key.ToString()));
+                throw new System.Collections.Generic.KeyNotFoundException(SR.Format(SR.Arg_KeyNotFoundWithKey, key));
             }
             set
             {
@@ -144,7 +144,7 @@ namespace System.Diagnostics.Tracing
                 position++;
             }
 
-            value = default(object);
+            value = default;
             return false;
         }
 

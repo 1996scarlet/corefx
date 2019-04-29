@@ -1,4 +1,4 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
@@ -296,7 +296,7 @@ namespace System.Collections.Concurrent.Tests
         /// <param name="numOfElementsPerThread">Number of elements to Add/Take per thread.</param>
         [Theory]
         [InlineData(8, 1024)]
-        private static void TestConcurrentAddTake(int numOfThreads, int numOfElementsPerThread)
+        public static void TestConcurrentAddTake(int numOfThreads, int numOfElementsPerThread)
         {
             //If numOfThreads is not an even number, make it even.
             if ((numOfThreads % 2) != 0)
@@ -1011,7 +1011,7 @@ namespace System.Collections.Concurrent.Tests
             ConcurrentStackCollection<int> concurrentCollection = new ConcurrentStackCollection<int>();
             int numberToAdd = 0;
             int numOfTrueTryAdds = 0;
-            int capacity = (boundedCapacity == -1) ? Int32.MaxValue : boundedCapacity;
+            int capacity = (boundedCapacity == -1) ? int.MaxValue : boundedCapacity;
 
             int expectedNumOfSuccessfulTryAdds;
             if (numOfAdds <= capacity)

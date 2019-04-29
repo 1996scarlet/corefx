@@ -15,7 +15,10 @@ namespace System.ComponentModel.Composition
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         public static TMetadataView GetMetadataView<TMetadataView>(IDictionary<string, object> metadata)
         {
-            Assumes.NotNull(metadata);
+            if(metadata == null)
+            {
+                throw new ArgumentNullException(nameof(metadata));
+            }
 
             Type metadataViewType = typeof(TMetadataView);
 
@@ -39,7 +42,7 @@ namespace System.ComponentModel.Composition
                         }
                         catch (TypeLoadException ex)
                         {
-                            throw new NotSupportedException(string.Format(CultureInfo.CurrentCulture, SR.NotSupportedInterfaceMetadataView, metadataViewType.FullName), ex);
+                            throw new NotSupportedException(SR.Format(SR.NotSupportedInterfaceMetadataView, metadataViewType.FullName), ex);
                         }
                     }
                     else
@@ -48,7 +51,7 @@ namespace System.ComponentModel.Composition
                         proxyType = implementationAttribute.ImplementationType;
                         if(proxyType == null)
                         {
-                            throw new CompositionContractMismatchException(string.Format(CultureInfo.CurrentCulture, 
+                            throw new CompositionContractMismatchException(SR.Format(
                                 SR.ContractMismatch_MetadataViewImplementationCanNotBeNull,
                                 metadataViewType.FullName,
                                 proxyType.FullName));
@@ -57,7 +60,7 @@ namespace System.ComponentModel.Composition
                         {
                             if(!metadataViewType.IsAssignableFrom(proxyType))
                             {
-                                throw new CompositionContractMismatchException(string.Format(CultureInfo.CurrentCulture, 
+                                throw new CompositionContractMismatchException(SR.Format(
                                     SR.ContractMismatch_MetadataViewImplementationDoesNotImplementViewInterface,
                                     metadataViewType.FullName,
                                     proxyType.FullName));
@@ -79,14 +82,17 @@ namespace System.ComponentModel.Composition
                     }
                     else
                     {
-                        Assumes.NotNull(proxyType);
+                        if(proxyType == null)
+                        {
+                            throw new Exception(SR.Diagnostic_InternalExceptionMessage);
+                        }
                         return (TMetadataView)proxyType.SafeCreateInstance(metadata);
                     }
                 }
                 catch (MissingMethodException ex)
                 {
                     // Unable to create an Instance of the Metadata view '{0}' because a constructor could not be selected.  Ensure that the type implements a constructor which takes an argument of type IDictionary<string, object>.
-                    throw new CompositionContractMismatchException(string.Format(CultureInfo.CurrentCulture,
+                    throw new CompositionContractMismatchException(SR.Format(
                         SR.CompositionException_MetadataViewInvalidConstructor,
                         proxyType.AssemblyQualifiedName), ex);
                 }
@@ -98,7 +104,7 @@ namespace System.ComponentModel.Composition
                         if(ex.InnerException.GetType() == typeof(InvalidCastException))
                         {
                             // Unable to create an Instance of the Metadata view {0} because the exporter exported the metadata for the item {1} with the value {2} as type {3} but the view imports it as type {4}.
-                            throw new CompositionContractMismatchException(string.Format(CultureInfo.CurrentCulture, 
+                            throw new CompositionContractMismatchException(SR.Format(
                                 SR.ContractMismatch_InvalidCastOnMetadataField,
                                 ex.InnerException.Data[MetadataViewGenerator.MetadataViewType],
                                 ex.InnerException.Data[MetadataViewGenerator.MetadataItemKey],
@@ -109,7 +115,7 @@ namespace System.ComponentModel.Composition
                         else if (ex.InnerException.GetType() == typeof(NullReferenceException))
                         {
                             // Unable to create an Instance of the Metadata view {0} because the exporter exported the metadata for the item {1} with a null value and null is not a valid value for type {2}.
-                            throw new CompositionContractMismatchException(string.Format(CultureInfo.CurrentCulture,
+                            throw new CompositionContractMismatchException(SR.Format(
                                 SR.ContractMismatch_NullReferenceOnMetadataField,
                                 ex.InnerException.Data[MetadataViewGenerator.MetadataViewType],
                                 ex.InnerException.Data[MetadataViewGenerator.MetadataItemKey],
@@ -123,7 +129,10 @@ namespace System.ComponentModel.Composition
 
         public static bool IsViewTypeValid(Type metadataViewType)
         {
-            Assumes.NotNull(metadataViewType);
+            if(metadataViewType == null)
+            {
+                throw new ArgumentNullException(nameof(metadataViewType));
+            }
 
             // If the Metadata dictionary is cast compatible with the passed in type
             if (ExportServices.IsDefaultMetadataViewType(metadataViewType)

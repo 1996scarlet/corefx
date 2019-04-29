@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Globalization;
 using System.Reflection;
 using System.ComponentModel.Design.Serialization;
+using System.Text;
 
 namespace System.Management
 {
@@ -139,7 +140,7 @@ namespace System.Management
                 if (nsPath.IndexOfAny(pathSeparators) == -1)
                 {
                     // No separators.  The only valid path is "root".
-                    if (String.Compare("root", nsPath, StringComparison.OrdinalIgnoreCase) != 0)
+                    if (!string.Equals("root", nsPath, StringComparison.OrdinalIgnoreCase))
                         return false;
                 }
             }
@@ -271,7 +272,7 @@ namespace System.Management
                 //For now we have to special-case the "root" namespace - 
                 //  this is because in the case of "root", the path parser cannot tell whether 
                 //  this is a namespace name or a class name
-                if (String.Compare(path, "root", StringComparison.OrdinalIgnoreCase) == 0)
+                if (string.Equals(path, "root", StringComparison.OrdinalIgnoreCase))
                     flags = flags | (uint) tag_WBEM_PATH_CREATE_FLAG.WBEMPATH_TREAT_SINGLE_IDENT_AS_NS;
 
                 int status = wbemPath.SetText_(flags, path);
@@ -293,7 +294,7 @@ namespace System.Management
 
         private static string GetWbemPath(IWbemPath wbemPath)
         {
-            String pathStr = String.Empty;
+            string pathStr = string.Empty;
 
             if (null != wbemPath)
             {
@@ -321,8 +322,9 @@ namespace System.Management
 
                     if (status >= 0 && 0 < bufLen)
                     {
-                        pathStr = new String ('0', (int) bufLen-1);
-                        status = wbemPath.GetText_(flags, ref bufLen, pathStr);
+                        char[] pathChars = new char[(int)bufLen];
+                        status = wbemPath.GetText_(flags, ref bufLen, pathChars);
+                        pathStr = new string(pathChars, 0, Array.IndexOf(pathChars, '\0'));
                     }
                 }
 
@@ -476,7 +478,7 @@ namespace System.Management
                 }
                 catch
                 {
-                    throw new ArgumentOutOfRangeException ("value");
+                    throw new ArgumentOutOfRangeException (nameof(value));
                 }
                 FireIdentifierChanged();
             }
@@ -495,7 +497,7 @@ namespace System.Management
         {
             get 
             { 
-                String pathStr = String.Empty;
+                string pathStr = string.Empty;
 
                 if (null != wmiPath)
                 {
@@ -508,11 +510,12 @@ namespace System.Management
 
                     if (status >= 0 && 0 < bufLen)
                     {
-                        pathStr = new String ('0', (int) bufLen-1);
+                        char[] pathChars = new char[(int)bufLen];
                         status = wmiPath.GetText_(
                             (int) tag_WBEM_GET_TEXT_FLAGS.WBEMPATH_GET_RELATIVE_ONLY,
                             ref bufLen, 
-                            pathStr);
+                            pathChars);
+                        pathStr = new string(pathChars, 0, Array.IndexOf(pathChars, '\0'));
                     }
 
                     if (status < 0)
@@ -541,7 +544,7 @@ namespace System.Management
                 } 
                 catch (COMException) 
                 {
-                    throw new ArgumentOutOfRangeException ("value");
+                    throw new ArgumentOutOfRangeException (nameof(value));
                 }
                 FireIdentifierChanged();
             }
@@ -565,11 +568,11 @@ namespace System.Management
 
             //Get the server & namespace part from the existing path, and concatenate the given relPath.
             //NOTE : we need to do this because IWbemPath doesn't have a function to set the relative path alone...
-            string newPath = String.Empty;
+            string newPath = string.Empty;
             string nsPath = this.GetNamespacePath((int)tag_WBEM_GET_TEXT_FLAGS.WBEMPATH_GET_SERVER_AND_NAMESPACE_ONLY);
 
             if (nsPath.Length>0 )
-                newPath = String.Concat(nsPath, ":", relPath);
+                newPath = string.Concat(nsPath, ":", relPath);
             else
                 newPath = relPath;
 
@@ -597,7 +600,7 @@ namespace System.Management
         {
             get 
             { 
-                String pathStr = String.Empty;
+                string pathStr = string.Empty;
 
                 if (null != wmiPath) 
                 {
@@ -607,8 +610,9 @@ namespace System.Management
 
                     if (status >= 0 && 0 < uLen)
                     {
-                        pathStr = new String ('0', (int) uLen-1);
-                        status = wmiPath.GetServer_(ref uLen, pathStr);
+                        char[] pathChars = new char[(int)uLen];
+                        status = wmiPath.GetServer_(ref uLen, pathChars);
+                        pathStr = new string(pathChars, 0, Array.IndexOf(pathChars, '\0'));
                     }
 
                     if (status < 0)
@@ -628,10 +632,10 @@ namespace System.Management
             }
             set 
             {
-                String oldValue = Server;
+                string oldValue = Server;
 
                 // Only set if changed
-                if (0 != String.Compare(oldValue,value,StringComparison.OrdinalIgnoreCase))
+                if (0 != string.Compare(oldValue,value,StringComparison.OrdinalIgnoreCase))
                 {
                     if (null == wmiPath)
                         wmiPath = (IWbemPath)MTAHelper.CreateInMTA(typeof(WbemDefPath));//new WbemDefPath ();
@@ -688,7 +692,7 @@ namespace System.Management
             nsNew = GetNamespacePath(wmiPathTmp,
                 (int)tag_WBEM_GET_TEXT_FLAGS.WBEMPATH_GET_NAMESPACE_ONLY);
 
-            if (String.Compare(nsOrg, nsNew, StringComparison.OrdinalIgnoreCase) != 0)
+            if (!string.Equals(nsOrg, nsNew, StringComparison.OrdinalIgnoreCase))
             {
                 wmiPath.RemoveAllNamespaces_();                                 // Out with the old... Ignore status code.
 
@@ -706,11 +710,11 @@ namespace System.Management
                             
                         if (status >= 0)
                         {
-                            string nSpace = new String('0', (int) uLen-1);
-                            status = wmiPathTmp.GetNamespaceAt_(i, ref uLen, nSpace);
+                            char[] space = new char[(int)uLen];
+                            status = wmiPathTmp.GetNamespaceAt_(i, ref uLen, space);
                             if (status >= 0)
                             {
-                                status = wmiPath.SetNamespaceAt_(i, nSpace);
+                                status = wmiPath.SetNamespaceAt_(i, space);
                                     
                                 if (status < 0)
                                     break;
@@ -738,8 +742,9 @@ namespace System.Management
 
                 if (status >= 0 && uLen > 0)
                 {
-                    string serverNew = new String ('0', (int) uLen-1);
-                    status = wmiPathTmp.GetServer_(ref uLen, serverNew);
+                    char[] newServerChars = new char[(int)uLen];
+                    status = wmiPathTmp.GetServer_(ref uLen, newServerChars);
+                    string serverNew = new string(newServerChars, 0, Array.IndexOf(newServerChars, '\0'));
 
                     if (status >= 0)
                     {
@@ -750,10 +755,11 @@ namespace System.Management
 
                         if (status >= 0)
                         {
-                            string serverOrg = new String('0', (int)uLen-1);
-                            status = wmiPath.GetServer_(ref uLen, serverOrg);
+                            char[] orgServerChars = new char[(int)uLen];
+                            status = wmiPath.GetServer_(ref uLen, orgServerChars);
+                            string serverOrg = new string(orgServerChars, 0, Array.IndexOf(orgServerChars, '\0'));
 
-                            if (status >= 0 && String.Compare(serverOrg, serverNew, StringComparison.OrdinalIgnoreCase) != 0)
+                            if (status >= 0 && !string.Equals(serverOrg, serverNew, StringComparison.OrdinalIgnoreCase))
                                 status = wmiPath.SetServer_(serverNew);
                         }
                         else if (status == (int)tag_WBEMSTATUS.WBEM_E_NOT_AVAILABLE)
@@ -786,7 +792,7 @@ namespace System.Management
 
         internal static string GetNamespacePath(IWbemPath wbemPath, int flags)
         {
-            string pathStr = String.Empty;
+            string pathStr = string.Empty;
 
             if (null != wbemPath)
             {
@@ -808,8 +814,9 @@ namespace System.Management
 
                     if (status >= 0 && bufLen > 0)
                     {
-                        pathStr = new String ('0', (int) bufLen-1);
-                        status = wbemPath.GetText_(flags, ref bufLen, pathStr);
+                        char[] pathChars = new char[(int)bufLen];
+                        status = wbemPath.GetText_(flags, ref bufLen, pathChars);
+                        pathStr = new string(pathChars, 0, Array.IndexOf(pathChars, '\0'));
                     }
                 }
 
@@ -855,7 +862,7 @@ namespace System.Management
                 }
                 catch (COMException)
                 {
-                    throw new ArgumentOutOfRangeException ("value");
+                    throw new ArgumentOutOfRangeException (nameof(value));
                 }
 
                 if (bChange)
@@ -879,10 +886,10 @@ namespace System.Management
             }
             set 
             {
-                String oldValue = ClassName;
+                string oldValue = ClassName;
 
                 // Only set if changed
-                if (0 != String.Compare(oldValue,value,StringComparison.OrdinalIgnoreCase))
+                if (0 != string.Compare(oldValue,value,StringComparison.OrdinalIgnoreCase))
                 {
                     // isWbemPathShared handled in internal className property accessor.
                     internalClassName = value;
@@ -895,7 +902,7 @@ namespace System.Management
         {
             get
             {
-                String pathStr = String.Empty;
+                string pathStr = string.Empty;
                 int status = (int)ManagementStatus.NoError;
 
                 if (null != wmiPath)
@@ -905,11 +912,12 @@ namespace System.Management
 
                     if (status >= 0 && 0 < bufLen)
                     {
-                        pathStr = new String ('0', (int) bufLen-1);
-                        status = wmiPath.GetClassName_(ref bufLen, pathStr);
+                        char[] pathChars = new char[(int)bufLen];
+                        status = wmiPath.GetClassName_(ref bufLen, pathChars);
+                        pathStr = new string(pathChars, 0, Array.IndexOf(pathChars, '\0'));
 
                         if (status < 0)
-                            pathStr = String.Empty;
+                            pathStr = string.Empty;
                     }
                 }
 
@@ -935,7 +943,7 @@ namespace System.Management
                 }
                 catch (COMException)
                 {
-                    throw new ArgumentOutOfRangeException ("value");
+                    throw new ArgumentOutOfRangeException (nameof(value));
                 }
 
                 if (status < 0)
@@ -1050,7 +1058,7 @@ namespace System.Management
         /// <returns>
         ///    <para>true if this converter can perform the conversion; otherwise, false.</para>
         /// </returns>
-        public override Boolean CanConvertFrom(ITypeDescriptorContext context, Type sourceType) 
+        public override bool CanConvertFrom(ITypeDescriptorContext context, Type sourceType) 
         {
             if ((sourceType == typeof(ManagementPath))) 
             {
@@ -1067,7 +1075,7 @@ namespace System.Management
         /// <returns>
         ///    <para>true if this converter can perform the conversion; otherwise, false.</para>
         /// </returns>
-        public override Boolean CanConvertTo(ITypeDescriptorContext context, Type destinationType) 
+        public override bool CanConvertTo(ITypeDescriptorContext context, Type destinationType) 
         {
             if ((destinationType == typeof(InstanceDescriptor))) 
             {
@@ -1093,13 +1101,13 @@ namespace System.Management
 
             if (destinationType == null) 
             {
-                throw new ArgumentNullException("destinationType");
+                throw new ArgumentNullException(nameof(destinationType));
             }
 
             if (value is ManagementPath && destinationType == typeof(InstanceDescriptor)) 
             {
                 ManagementPath obj = ((ManagementPath)(value));
-                ConstructorInfo ctor = typeof(ManagementPath).GetConstructor(new Type[] {typeof(System.String)});
+                ConstructorInfo ctor = typeof(ManagementPath).GetConstructor(new Type[] {typeof(string)});
                 if (ctor != null) 
                 {
                     return new InstanceDescriptor(ctor, new object[] {obj.Path});

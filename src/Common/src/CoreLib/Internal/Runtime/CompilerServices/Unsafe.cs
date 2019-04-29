@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
@@ -71,7 +72,7 @@ namespace Internal.Runtime.CompilerServices
         [Intrinsic]
         [NonVersionable]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T As<T>(object value) where T : class
+        public static T As<T>(object? value) where T : class?
         {
             throw new PlatformNotSupportedException();
 
@@ -355,6 +356,17 @@ namespace Internal.Runtime.CompilerServices
         public static ref T AsRef<T>(void* source)
         {
             return ref Unsafe.As<byte, T>(ref *(byte*)source);
+        }
+
+        /// <summary>
+        /// Reinterprets the given location as a reference to a value of type <typeparamref name="T"/>.
+        /// </summary>
+        [Intrinsic]
+        [NonVersionable]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref T AsRef<T>(in T source)
+        {
+            throw new PlatformNotSupportedException();
         }
 
         /// <summary>

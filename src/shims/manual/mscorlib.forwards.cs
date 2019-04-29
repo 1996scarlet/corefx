@@ -20,14 +20,5 @@
 [assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.OrdinalComparer))]
 [assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.UnitySerializationHolder))]
 [assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.Diagnostics.Contracts.ContractException))]
-
-// This is temporary as we are building the mscorlib shim against netfx461 which doesn't contain ValueTuples.
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<>))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<,>))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<,,>))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<,,,>))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<,,,,>))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<,,,,,>))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<,,,,,,>))]
-[assembly:System.Runtime.CompilerServices.TypeForwardedTo(typeof(System.ValueTuple<,,,,,,,>))]
+// System.void typeforward requires a special C# syntax that we choose to handle here.
+[assembly: System.Runtime.CompilerServices.TypeForwardedTo(typeof(void))]

@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -70,7 +71,7 @@ namespace System.IO
             return ((value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z'));
         }
 
-        internal static bool EndsWithPeriodOrSpace(string path)
+        internal static bool EndsWithPeriodOrSpace(string? path)
         {
             if (string.IsNullOrEmpty(path))
                 return false;
@@ -86,26 +87,9 @@ namespace System.IO
         /// away from paths during normalization, but if we see such a path at this point it should be
         /// normalized and has retained the final characters. (Typically from one of the *Info classes)
         /// </summary>
-        internal static string EnsureExtendedPrefixIfNeeded(string path)
+        internal static string? EnsureExtendedPrefixIfNeeded(string? path)
         {
             if (path != null && (path.Length >= MaxShortPath || EndsWithPeriodOrSpace(path)))
-            {
-                return EnsureExtendedPrefix(path);
-            }
-            else
-            {
-                return path;
-            }
-        }
-
-        /// <summary>
-        /// DO NOT USE- Use EnsureExtendedPrefixIfNeeded. This will be removed shortly.
-        /// Adds the extended path prefix (\\?\) if not already a device path, IF the path is not relative,
-        /// AND the path is more than 259 characters. (> MAX_PATH + null)
-        /// </summary>
-        internal static string EnsureExtendedPrefixOverMaxPath(string path)
-        {
-            if (path != null && path.Length >= MaxShortPath)
             {
                 return EnsureExtendedPrefix(path);
             }
@@ -130,7 +114,7 @@ namespace System.IO
             // In any case, all internal usages should be hitting normalize path (Path.GetFullPath) before they hit this
             // shimming method. (Or making a change that doesn't impact normalization, such as adding a filename to a
             // normalized base path.)
-            if (IsPartiallyQualified(path) || IsDevice(path))
+            if (IsPartiallyQualified(path.AsSpan()) || IsDevice(path.AsSpan()))
                 return path;
 
             // Given \\server\share in longpath becomes \\?\UNC\server\share
@@ -375,7 +359,8 @@ namespace System.IO
             if (normalized)
                 return path;
 
-            StringBuilder builder = new StringBuilder(path.Length);
+            Span<char> initialBuffer = stackalloc char[MaxShortPath];
+            ValueStringBuilder builder = new ValueStringBuilder(initialBuffer);
 
             int start = 0;
             if (IsDirectorySeparator(path[start]))

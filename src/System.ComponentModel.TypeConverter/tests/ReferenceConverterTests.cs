@@ -35,11 +35,12 @@ using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Globalization;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
 namespace System.ComponentModel.Tests
 {
-    public class ReferenceConverterTest : RemoteExecutorTestBase
+    public class ReferenceConverterTest
     {
 
         class TestReferenceService : IReferenceService
@@ -199,7 +200,7 @@ namespace System.ComponentModel.Tests
         [Fact]
         public void ConvertTo()
         {
-            RemoteInvoke(() =>
+            RemoteExecutor.Invoke(() =>
             {
                 CultureInfo.CurrentUICulture = CultureInfo.InvariantCulture;
 
@@ -212,7 +213,7 @@ namespace System.ComponentModel.Tests
             TestComponent component = new TestComponent();
 
             // no context
-            Assert.Equal(String.Empty, (string)converter.ConvertTo(null, null, component, typeof(string)));
+            Assert.Equal(string.Empty, (string)converter.ConvertTo(null, null, component, typeof(string)));
 
             // context with IReferenceService
             TestReferenceService referenceService = new TestReferenceService();

@@ -2,8 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using Microsoft.Win32;
-using Microsoft.Win32.SafeHandles;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -11,14 +9,18 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
-using Xunit;
 using System.Text;
 using System.ComponentModel;
 using System.Security;
 using System.Threading;
+using Microsoft.DotNet.RemoteExecutor;
+using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
+using Xunit;
 
 namespace System.Diagnostics.Tests
 {
+    [ActiveIssue(31908, TargetFrameworkMonikers.Uap)]
     public partial class ProcessStartInfoTests : ProcessTestBase
     {
         [Fact]
@@ -196,6 +198,27 @@ namespace System.Diagnostics.Tests
         }
 
         [Fact]
+        [ActiveIssue(29865, TargetFrameworkMonikers.UapNotUapAot)]
+        public void TestSetEnvironmentOnChildProcess()
+        {
+            const string name = "b5a715d3-d74f-465d-abb7-2abe844750c9";
+            Environment.SetEnvironmentVariable(name, "parent-process-value");
+
+            Process p = CreateProcess(() =>
+            {
+                if (Environment.GetEnvironmentVariable(name) != "child-process-value") 
+                    return 1;
+
+                return RemoteExecutor.SuccessExitCode;
+            });
+            p.StartInfo.Environment.Add(name, "child-process-value");
+            p.Start();
+
+            Assert.True(p.WaitForExit(WaitInMS));
+            Assert.Equal(RemoteExecutor.SuccessExitCode, p.ExitCode);
+        }
+
+        [Fact]
         [SkipOnTargetFramework(TargetFrameworkMonikers.UapNotUapAot, "Retrieving information about local processes is not supported on uap")]
         public void TestEnvironmentOfChildProcess()
         {
@@ -209,7 +232,7 @@ namespace System.Diagnostics.Tests
                 Process p = CreateProcess(() =>
                 {
                     Console.Write(string.Join(ItemSeparator, Environment.GetEnvironmentVariables().Cast<DictionaryEntry>().Select(e => Convert.ToBase64String(Encoding.UTF8.GetBytes(e.Key + "=" + e.Value)))));
-                    return SuccessExitCode;
+                    return RemoteExecutor.SuccessExitCode;
                 });
                 p.StartInfo.StandardOutputEncoding = Encoding.UTF8;
                 p.StartInfo.RedirectStandardOutput = true;
@@ -335,8 +358,7 @@ namespace System.Diagnostics.Tests
             }
             finally
             {
-                if (!testProcess.HasExited)
-                    testProcess.Kill();
+                testProcess.Kill();
 
                 Assert.True(testProcess.WaitForExit(WaitInMS));
             }
@@ -357,7 +379,11 @@ namespace System.Diagnostics.Tests
             string workingDirectory = string.IsNullOrEmpty(Environment.SystemDirectory) ? TestDirectory : Environment.SystemDirectory ;
             Assert.NotEqual(workingDirectory, Directory.GetCurrentDirectory());
             var psi = new ProcessStartInfo { WorkingDirectory = workingDirectory };
-            RemoteInvoke(wd => { Assert.Equal(wd, Directory.GetCurrentDirectory()); return SuccessExitCode; }, workingDirectory, new RemoteInvokeOptions { StartInfo = psi }).Dispose();
+            RemoteExecutor.Invoke(wd =>
+            {
+                Assert.Equal(wd, Directory.GetCurrentDirectory());
+                return RemoteExecutor.SuccessExitCode;
+            }, workingDirectory, new RemoteInvokeOptions { StartInfo = psi }).Dispose();
         }
 
         [ActiveIssue(12696)]
@@ -416,8 +442,7 @@ namespace System.Diagnostics.Tests
 
                 if (hasStarted)
                 {
-                    if (!p.HasExited)
-                        p.Kill();
+                    p.Kill();
 
                     Assert.True(p.WaitForExit(WaitInMS));
                 }
@@ -494,7 +519,7 @@ namespace System.Diagnostics.Tests
             Assert.False(psi.Environment.Contains(new KeyValuePair<string, string>("NewKey3", "NewValue3")));
         }
 
-        [Fact]
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsNotWindowsNanoServer))] // Nano does not support these verbs
         [PlatformSpecific(TestPlatforms.Windows)]  // Test case is specific to Windows
         [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "Retrieving information about local processes is not supported on uap")]
         public void Verbs_GetWithExeExtension_ReturnsExpected()
@@ -509,11 +534,8 @@ namespace System.Diagnostics.Tests
             }
 
             Assert.Contains("open", psi.Verbs, StringComparer.OrdinalIgnoreCase);
-            if (PlatformDetection.IsNotWindowsNanoServer)
-            {
-                Assert.Contains("runas", psi.Verbs, StringComparer.OrdinalIgnoreCase);
-                Assert.Contains("runasuser", psi.Verbs, StringComparer.OrdinalIgnoreCase);
-            }
+            Assert.Contains("runas", psi.Verbs, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("runasuser", psi.Verbs, StringComparer.OrdinalIgnoreCase);
             Assert.DoesNotContain("printto", psi.Verbs, StringComparer.OrdinalIgnoreCase);
             Assert.DoesNotContain("closed", psi.Verbs, StringComparer.OrdinalIgnoreCase);
         }
@@ -975,8 +997,7 @@ namespace System.Diagnostics.Tests
                 }
                 finally
                 {
-                    if (process != null && !process.HasExited)
-                        process.Kill();
+                    process?.Kill();
                 }
             }
         }
@@ -985,8 +1006,7 @@ namespace System.Diagnostics.Tests
                                                     nameof(PlatformDetection.IsNotWindows8x))] // https://github.com/dotnet/corefx/issues/20388
         [OuterLoop("Launches notepad")]
         [PlatformSpecific(TestPlatforms.Windows)]
-        // Re-enabling with extra diagnostic info
-        // [ActiveIssue("https://github.com/dotnet/corefx/issues/20388")]
+        [ActiveIssue("https://github.com/dotnet/corefx/issues/20388", TargetFrameworkMonikers.NetFramework)]
         // We don't have the ability yet for UseShellExecute in UAP
         [ActiveIssue("https://github.com/dotnet/corefx/issues/20204", TargetFrameworkMonikers.Uap | TargetFrameworkMonikers.UapAot)]
         public void StartInfo_TextFile_ShellExecute()
@@ -1025,8 +1045,7 @@ namespace System.Diagnostics.Tests
                 }
                 finally
                 {
-                    if (process != null && !process.HasExited)
-                        process.Kill();
+                    process?.Kill();
                 }
             }
         }
@@ -1097,7 +1116,8 @@ namespace System.Diagnostics.Tests
                 TheoryData<bool> data = new TheoryData<bool> { false };
 
                 if (   !PlatformDetection.IsUap // https://github.com/dotnet/corefx/issues/20204
-                    && !PlatformDetection.IsWindowsNanoServer) // By design
+                    && !PlatformDetection.IsWindowsNanoServer // By design
+                    && !PlatformDetection.IsWindowsIoTCore)
                     data.Add(true);
                 return data;
             }

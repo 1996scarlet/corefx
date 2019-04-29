@@ -18,7 +18,6 @@ namespace System.IO.MemoryMappedFiles
         /// out empty).
         /// </summary>
 
-        private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
         private static SafeMemoryMappedFileHandle CreateCore(
             FileStream fileStream, string mapName, HandleInheritability inheritability,
             MemoryMappedFileAccess access, MemoryMappedFileOptions options, long capacity)
@@ -29,7 +28,7 @@ namespace System.IO.MemoryMappedFiles
 
             SafeMemoryMappedFileHandle handle = fileHandle != null ?
                 Interop.CreateFileMapping(fileHandle, ref secAttrs, GetPageAccess(access) | (int)options, capacity, mapName) :
-                Interop.CreateFileMapping(INVALID_HANDLE_VALUE, ref secAttrs, GetPageAccess(access) | (int)options, capacity, mapName);
+                Interop.CreateFileMapping(new IntPtr(-1), ref secAttrs, GetPageAccess(access) | (int)options, capacity, mapName);
 
             int errorCode = Marshal.GetLastWin32Error();
             if (!handle.IsInvalid)
@@ -78,15 +77,15 @@ namespace System.IO.MemoryMappedFiles
             string mapName, HandleInheritability inheritability, MemoryMappedFileAccess access, 
             MemoryMappedFileOptions options, long capacity)
         {
-            /// Try to open the file if it exists -- this requires a bit more work. Loop until we can
-            /// either create or open a memory mapped file up to a timeout. CreateFileMapping may fail
-            /// if the file exists and we have non-null security attributes, in which case we need to
-            /// use OpenFileMapping.  But, there exists a race condition because the memory mapped file
-            /// may have closed between the two calls -- hence the loop. 
-            /// 
-            /// The retry/timeout logic increases the wait time each pass through the loop and times 
-            /// out in approximately 1.4 minutes. If after retrying, a MMF handle still hasn't been opened, 
-            /// throw an InvalidOperationException.
+            // Try to open the file if it exists -- this requires a bit more work. Loop until we can
+            // either create or open a memory mapped file up to a timeout. CreateFileMapping may fail
+            // if the file exists and we have non-null security attributes, in which case we need to
+            // use OpenFileMapping.  But, there exists a race condition because the memory mapped file
+            // may have closed between the two calls -- hence the loop. 
+            // 
+            // The retry/timeout logic increases the wait time each pass through the loop and times 
+            // out in approximately 1.4 minutes. If after retrying, a MMF handle still hasn't been opened, 
+            // throw an InvalidOperationException.
 
             Debug.Assert(access != MemoryMappedFileAccess.Write, "Callers requesting write access shouldn't try to create a mmf");
 
@@ -100,7 +99,7 @@ namespace System.IO.MemoryMappedFiles
             while (waitRetries > 0)
             {
                 // try to create
-                handle = Interop.CreateFileMapping(INVALID_HANDLE_VALUE, ref secAttrs,
+                handle = Interop.CreateFileMapping(new IntPtr(-1), ref secAttrs,
                     GetPageAccess(access) | (int)options, capacity, mapName);
 
                 if (!handle.IsInvalid)

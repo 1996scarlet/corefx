@@ -15,7 +15,6 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Collections;
-using System.Security.Permissions;
 
 namespace System.DirectoryServices.AccountManagement
 {
@@ -381,7 +380,7 @@ namespace System.DirectoryServices.AccountManagement
                 throw new ArgumentException(SR.ContextBadUserPwdCombo);
 
             if ((options & ~(ContextOptions.Signing | ContextOptions.Negotiate | ContextOptions.Sealing | ContextOptions.SecureSocketLayer | ContextOptions.SimpleBind | ContextOptions.ServerBind)) != 0)
-                throw new InvalidEnumArgumentException("options", (int)options, typeof(ContextOptions));
+                throw new InvalidEnumArgumentException(nameof(options), (int)options, typeof(ContextOptions));
 
             if (contextType == ContextType.Machine && ((options & ~ContextOptions.Negotiate) != 0))
             {
@@ -403,13 +402,13 @@ namespace System.DirectoryServices.AccountManagement
 #endif
                 )
             {
-                throw new InvalidEnumArgumentException("contextType", (int)contextType, typeof(ContextType));
+                throw new InvalidEnumArgumentException(nameof(contextType), (int)contextType, typeof(ContextType));
             }
 
             if ((contextType == ContextType.Machine) && (container != null))
                 throw new ArgumentException(SR.ContextNoContainerForMachineCtx);
 
-            if ((contextType == ContextType.ApplicationDirectory) && ((String.IsNullOrEmpty(container)) || (String.IsNullOrEmpty(name))))
+            if ((contextType == ContextType.ApplicationDirectory) && ((string.IsNullOrEmpty(container)) || (string.IsNullOrEmpty(name))))
                 throw new ArgumentException(SR.ContextNoContainerForApplicationDirectoryCtx);
 
             _contextType = contextType;
@@ -499,7 +498,7 @@ namespace System.DirectoryServices.AccountManagement
 
         /// <summary>
         /// Validate the passed credentials against the directory supplied.
-        //   This function will use the best determined method to do the evaluation
+        /// This function will use the best determined method to do the evaluation.
         /// </summary>
 
         public bool ValidateCredentials(string userName, string password)
@@ -522,7 +521,7 @@ namespace System.DirectoryServices.AccountManagement
 
         /// <summary>
         /// Validate the passed credentials against the directory supplied.
-        //   The supplied options will determine the directory method for credential validation.
+        /// The supplied options will determine the directory method for credential validation.
         /// </summary>
         public bool ValidateCredentials(string userName, string password, ContextOptions options)
         {
@@ -690,7 +689,7 @@ namespace System.DirectoryServices.AccountManagement
 
                 if (_serverProperties.contextType != _contextType)
                 {
-                    throw new ArgumentException(string.Format(CultureInfo.CurrentCulture, SR.PassedContextTypeDoesNotMatchDetectedType, _serverProperties.contextType.ToString()));
+                    throw new ArgumentException(SR.Format(SR.PassedContextTypeDoesNotMatchDetectedType, _serverProperties.contextType.ToString()));
                 }
             }
         }

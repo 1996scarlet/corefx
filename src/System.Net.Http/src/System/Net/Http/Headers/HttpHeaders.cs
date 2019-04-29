@@ -6,7 +6,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics.Contracts;
 using System.Text;
 
 namespace System.Net.Http.Headers
@@ -340,8 +339,6 @@ namespace System.Net.Http.Headers
 
         private IEnumerator<KeyValuePair<string, IEnumerable<string>>> GetEnumeratorCore()
         {
-            List<HeaderDescriptor> invalidHeaders = null;
-
             foreach (var header in _headerStore)
             {
                 HeaderDescriptor descriptor = header.Key;
@@ -352,30 +349,13 @@ namespace System.Net.Http.Headers
                 // values.
                 if (!ParseRawHeaderValues(descriptor, info, false))
                 {
-                    // We have an invalid header value (contains invalid newline chars). Mark it as "to-be-deleted"
-                    // and skip this header.
-                    if (invalidHeaders == null)
-                    {
-                        invalidHeaders = new List<HeaderDescriptor>();
-                    }
-                    invalidHeaders.Add(descriptor);
+                    // We have an invalid header value (contains invalid newline chars). Delete it.
+                    _headerStore.Remove(descriptor);
                 }
                 else
                 {
                     string[] values = GetValuesAsStrings(descriptor, info);
                     yield return new KeyValuePair<string, IEnumerable<string>>(descriptor.Name, values);
-                }
-            }
-
-            // While we were enumerating headers, we also parsed header values. If during parsing it turned out that
-            // the header value was invalid (contains invalid newline chars), remove the header from the store after
-            // completing the enumeration.
-            if (invalidHeaders != null)
-            {
-                Debug.Assert(_headerStore != null);
-                foreach (HeaderDescriptor invalidheaderInfo in invalidHeaders)
-                {
-                    _headerStore.Remove(invalidheaderInfo);
                 }
             }
         }
@@ -392,8 +372,6 @@ namespace System.Net.Http.Headers
 
         private IEnumerable<KeyValuePair<HeaderDescriptor, string[]>> GetHeaderDescriptorsAndValuesCore()
         {
-            List<HeaderDescriptor> invalidHeaders = null;
-
             foreach (var header in _headerStore)
             {
                 HeaderDescriptor descriptor = header.Key;
@@ -404,30 +382,13 @@ namespace System.Net.Http.Headers
                 // values.
                 if (!ParseRawHeaderValues(descriptor, info, false))
                 {
-                    // We have an invalid header value (contains invalid newline chars). Mark it as "to-be-deleted"
-                    // and skip this header.
-                    if (invalidHeaders == null)
-                    {
-                        invalidHeaders = new List<HeaderDescriptor>();
-                    }
-                    invalidHeaders.Add(descriptor);
+                    // We have an invalid header value (contains invalid newline chars). Delete it.
+                    _headerStore.Remove(descriptor);
                 }
                 else
                 {
                     string[] values = GetValuesAsStrings(descriptor, info);
                     yield return new KeyValuePair<HeaderDescriptor, string[]>(descriptor, values);
-                }
-            }
-
-            // While we were enumerating headers, we also parsed header values. If during parsing it turned out that
-            // the header value was invalid (contains invalid newline chars), remove the header from the store after
-            // completing the enumeration.
-            if (invalidHeaders != null)
-            {
-                Debug.Assert(_headerStore != null);
-                foreach (HeaderDescriptor invalidheaderInfo in invalidHeaders)
-                {
-                    _headerStore.Remove(invalidheaderInfo);
                 }
             }
         }
@@ -635,8 +596,6 @@ namespace System.Net.Http.Headers
                 return;
             }
 
-            List<HeaderDescriptor> invalidHeaders = null;
-
             foreach (var header in sourceHeaders._headerStore)
             {
                 // Only add header values if they're not already set on the message. Note that we don't merge 
@@ -652,27 +611,13 @@ namespace System.Net.Http.Headers
                     if (!sourceHeaders.ParseRawHeaderValues(header.Key, sourceInfo, false))
                     {
                         // If after trying to parse source header values no value is left (i.e. all values contain 
-                        // invalid newline chars), mark this header as 'to-be-deleted' and skip to the next header.
-                        if (invalidHeaders == null)
-                        {
-                            invalidHeaders = new List<HeaderDescriptor>();
-                        }
-
-                        invalidHeaders.Add(header.Key);
+                        // invalid newline chars), delete it and skip to the next header.
+                        sourceHeaders._headerStore.Remove(header.Key);
                     }
                     else
                     {
                         AddHeaderInfo(header.Key, sourceInfo);
                     }
-                }
-            }
-
-            if (invalidHeaders != null)
-            {
-                Debug.Assert(sourceHeaders._headerStore != null);
-                foreach (HeaderDescriptor invalidheaderInfo in invalidHeaders)
-                {
-                    sourceHeaders._headerStore.Remove(invalidheaderInfo);
                 }
             }
         }
@@ -756,8 +701,6 @@ namespace System.Net.Http.Headers
 
         private HeaderStoreItemInfo GetOrCreateHeaderInfo(HeaderDescriptor descriptor, bool parseRawValues)
         {
-            Contract.Ensures(Contract.Result<HeaderStoreItemInfo>() != null);
-
             HeaderStoreItemInfo result = null;
             bool found = false;
             if (parseRawValues)
@@ -774,6 +717,7 @@ namespace System.Net.Http.Headers
                 result = CreateAndAddHeaderToStore(descriptor);
             }
 
+            Debug.Assert(result != null);
             return result;
         }
 
@@ -781,6 +725,9 @@ namespace System.Net.Http.Headers
         {
             // If we don't have the header in the store yet, add it now.
             HeaderStoreItemInfo result = new HeaderStoreItemInfo();
+
+            // If the descriptor header type is in _treatAsCustomHeaderTypes, it must be converted to a custom header before calling this method
+            Debug.Assert((descriptor.HeaderType & _treatAsCustomHeaderTypes) == 0);
 
             AddHeaderToStore(descriptor, result);
 
@@ -1040,7 +987,7 @@ namespace System.Net.Http.Headers
                     break;
 
                 default:
-                    Debug.Assert(false, "Unknown StoreLocation value: " + location.ToString());
+                    Debug.Fail("Unknown StoreLocation value: " + location.ToString());
                     break;
             }
         }
@@ -1113,7 +1060,7 @@ namespace System.Net.Http.Headers
             // value already set.
             if (!info.CanAddValue(descriptor.Parser))
             {
-                throw new FormatException(string.Format(System.Globalization.CultureInfo.InvariantCulture, SR.net_http_headers_single_value_header, descriptor.Name));
+                throw new FormatException(SR.Format(System.Globalization.CultureInfo.InvariantCulture, SR.net_http_headers_single_value_header, descriptor.Name));
             }
 
             int index = 0;
@@ -1233,8 +1180,6 @@ namespace System.Net.Http.Headers
 
         private static string[] GetValuesAsStrings(HeaderDescriptor descriptor, HeaderStoreItemInfo info, object exclude = null)
         {
-            Contract.Ensures(Contract.Result<string[]>() != null);
-
             int length = GetValueCount(info);
             string[] values;
 
@@ -1263,6 +1208,7 @@ namespace System.Net.Http.Headers
                 values = Array.Empty<string>();
             }
 
+            Debug.Assert(values != null);
             return values;
         }
 

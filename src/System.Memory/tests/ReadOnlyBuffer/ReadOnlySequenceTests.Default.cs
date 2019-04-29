@@ -21,6 +21,7 @@ namespace System.Memory.Tests
             Assert.True(buffer.IsSingleSegment);
             Assert.Equal(0, buffer.Length);
             Assert.True(buffer.First.IsEmpty);
+            Assert.True(buffer.FirstSpan.IsEmpty);
             Assert.Equal($"System.Buffers.ReadOnlySequence<{typeof(byte).Name}>[0]", buffer.ToString());
         }
 
@@ -80,12 +81,12 @@ namespace System.Memory.Tests
         public void Default_SlicePositiveStart()
         {
             ReadOnlySequence<byte> buffer = default;
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(1, 0));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(1, 0));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(1, buffer.End));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(1));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(1L, 0L));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(1L, buffer.End));
+            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(1, 0));
+            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(1, 0));
+            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(1, buffer.End));
+            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(1));
+            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(1L, 0L));
+            Assert.Throws<ArgumentOutOfRangeException>("start", () => buffer.Slice(1L, buffer.End));
         }
 
         [Fact]
@@ -105,10 +106,10 @@ namespace System.Memory.Tests
         public void Default_SlicePositiveLength()
         {
             ReadOnlySequence<byte> buffer = default;
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(0, 1));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(0L, 1L));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(buffer.Start, 1));
-            Assert.Throws<ArgumentOutOfRangeException>("offset", () => buffer.Slice(buffer.Start, 1L));
+            Assert.Throws<ArgumentOutOfRangeException>("length", () => buffer.Slice(0, 1));
+            Assert.Throws<ArgumentOutOfRangeException>("length", () => buffer.Slice(0L, 1L));
+            Assert.Throws<ArgumentOutOfRangeException>("length", () => buffer.Slice(buffer.Start, 1));
+            Assert.Throws<ArgumentOutOfRangeException>("length", () => buffer.Slice(buffer.Start, 1L));
         }
 
         [Fact]

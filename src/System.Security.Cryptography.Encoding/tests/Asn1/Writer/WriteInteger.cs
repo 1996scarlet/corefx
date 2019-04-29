@@ -4,6 +4,7 @@
 
 using System.Numerics;
 using System.Security.Cryptography.Asn1;
+using Test.Cryptography;
 using Xunit;
 
 namespace System.Security.Cryptography.Tests.Asn1
@@ -280,6 +281,87 @@ namespace System.Security.Cryptography.Tests.Asn1
         }
 
         [Theory]
+        [InlineData("00")]
+        [InlineData("01")]
+        [InlineData("80")]
+        [InlineData("FF")]
+        [InlineData("0080")]
+        [InlineData("00FF")]
+        [InlineData("8000")]
+        [InlineData("00F0E0D0C0B0A090807060504030201000")]
+        [InlineData("FEFDFCFBFAF9F8F7F6F5F4F3F2F1F100")]
+        public void VerifyWriteInteger_EncodedBytes(string valueHex)
+        {
+            string expectedHex = "02" + (valueHex.Length / 2).ToString("X2") + valueHex;
+
+            using (AsnWriter writer = new AsnWriter(AsnEncodingRules.BER))
+            {
+                writer.WriteInteger(valueHex.HexToByteArray());
+
+                Verify(writer, expectedHex);
+            }
+        }
+
+        [Theory]
+        [InlineData("00")]
+        [InlineData("01")]
+        [InlineData("80")]
+        [InlineData("FF")]
+        [InlineData("0080")]
+        [InlineData("00FF")]
+        [InlineData("8000")]
+        [InlineData("00F0E0D0C0B0A090807060504030201000")]
+        [InlineData("FEFDFCFBFAF9F8F7F6F5F4F3F2F1F100")]
+        public void VerifyWriteInteger_Context4_EncodedBytes(string valueHex)
+        {
+            string expectedHex = "84" + (valueHex.Length / 2).ToString("X2") + valueHex;
+
+            using (AsnWriter writer = new AsnWriter(AsnEncodingRules.BER))
+            {
+                writer.WriteInteger(new Asn1Tag(TagClass.ContextSpecific, 4), valueHex.HexToByteArray());
+
+                Verify(writer, expectedHex);
+            }
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("0000")]
+        [InlineData("0000000000000000000001")]
+        [InlineData("0001")]
+        [InlineData("007F")]
+        [InlineData("FFFF")]
+        [InlineData("FFFFFFFFFFFFFFFFFFFFFE")]
+        [InlineData("FF80")]
+        public void VerifyWriteInteger_InvalidEncodedValue_Throws(string valuHex)
+        {
+            using (AsnWriter writer = new AsnWriter(AsnEncodingRules.BER))
+            {
+                Assert.ThrowsAny<CryptographicException>(() => writer.WriteInteger(valuHex.HexToByteArray()));
+            }
+        }
+
+        [Theory]
+        [InlineData("")]
+        [InlineData("0000")]
+        [InlineData("0000000000000000000001")]
+        [InlineData("0001")]
+        [InlineData("007F")]
+        [InlineData("FFFF")]
+        [InlineData("FFFFFFFFFFFFFFFFFFFFFE")]
+        [InlineData("FF80")]
+        public void VerifyWriteInteger_Application3_InvalidEncodedValue_Throws(string valuHex)
+        {
+            using (AsnWriter writer = new AsnWriter(AsnEncodingRules.BER))
+            {
+                Asn1Tag tag = new Asn1Tag(TagClass.Application, 3);
+
+                Assert.ThrowsAny<CryptographicException>(
+                    () => writer.WriteInteger(tag, valuHex.HexToByteArray()));
+            }
+        }
+
+        [Theory]
         [InlineData(PublicEncodingRules.BER)]
         [InlineData(PublicEncodingRules.CER)]
         [InlineData(PublicEncodingRules.DER)]
@@ -317,6 +399,94 @@ namespace System.Security.Cryptography.Tests.Asn1
                 writer.WriteInteger(new Asn1Tag(TagClass.ContextSpecific, 0, isConstructed: true), BigInteger.Zero);
 
                 Verify(writer, "020100800100020100800100020100800100");
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public static void WriteAfterDispose(bool empty)
+        {
+            using (AsnWriter writer = new AsnWriter(AsnEncodingRules.DER))
+            {
+                if (!empty)
+                {
+                    writer.WriteNull();
+                }
+
+                writer.Dispose();
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(1));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(1UL));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(BigInteger.One));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(BigInteger.One.ToByteArray()));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(Array.Empty<byte>()));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(new byte[] { 0, 0 }));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(new byte[] { 0xFF, 0xFF }));
+
+                AssertExtensions.Throws<ArgumentException>(
+                    "tag",
+                    () => writer.WriteInteger(Asn1Tag.Boolean, 1));
+
+                AssertExtensions.Throws<ArgumentException>(
+                    "tag",
+                    () => writer.WriteInteger(Asn1Tag.Boolean, 1UL));
+
+                AssertExtensions.Throws<ArgumentException>(
+                    "tag",
+                    () => writer.WriteInteger(Asn1Tag.Boolean, BigInteger.One));
+
+                AssertExtensions.Throws<ArgumentException>(
+                    "tag",
+                    () => writer.WriteInteger(Asn1Tag.Boolean, BigInteger.One.ToByteArray()));
+
+                AssertExtensions.Throws<ArgumentException>(
+                    "tag",
+                    () => writer.WriteInteger(Asn1Tag.Boolean, Array.Empty<byte>()));
+
+                AssertExtensions.Throws<ArgumentException>(
+                    "tag",
+                    () => writer.WriteInteger(Asn1Tag.Boolean, new byte[] { 0, 0 }));
+
+                AssertExtensions.Throws<ArgumentException>(
+                    "tag",
+                    () => writer.WriteInteger(Asn1Tag.Boolean, new byte[] { 0xFF, 0xFF }));
+
+                Asn1Tag tag = new Asn1Tag(TagClass.Application, 0);
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(tag, 1));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(tag, 1UL));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(tag, BigInteger.One));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(tag, BigInteger.One.ToByteArray()));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(tag, Array.Empty<byte>()));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(tag, new byte[] { 0, 0 }));
+
+                Assert.Throws<ObjectDisposedException>(
+                    () => writer.WriteInteger(tag, new byte[] { 0xFF, 0xFF }));
             }
         }
     }

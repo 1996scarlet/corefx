@@ -4,6 +4,7 @@
 
 using System;
 using System.Diagnostics;
+using System.Net.Security;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.Win32.SafeHandles;
@@ -14,6 +15,7 @@ internal static partial class Interop
     {
         internal const int SSL_TLSEXT_ERR_OK = 0;
         internal const int OPENSSL_NPN_NEGOTIATED = 1;
+        internal const int SSL_TLSEXT_ERR_ALERT_FATAL = 2;
         internal const int SSL_TLSEXT_ERR_NOACK = 3;
 
         internal delegate int SslCtxSetVerifyCallback(int preverify_ok, IntPtr x509_ctx);
@@ -46,10 +48,11 @@ internal static partial class Interop
         internal static extern void SslSetAcceptState(SafeSslHandle ssl);
 
         [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslGetVersion")]
-        private static extern IntPtr SslGetVersion(SafeSslHandle ssl);
+        internal static extern IntPtr SslGetVersion(SafeSslHandle ssl);
 
         [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslSetTlsExtHostName")]
-        internal static extern int SslSetTlsExtHostName(SafeSslHandle ssl, string host);
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SslSetTlsExtHostName(SafeSslHandle ssl, string host);
 
         [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslGet0AlpnSelected")]
         internal static extern void SslGetAlpnSelected(SafeSslHandle ssl, out IntPtr protocol, out int len);
@@ -66,11 +69,6 @@ internal static partial class Interop
             byte[] result = new byte[len];
             Marshal.Copy(protocol, result, 0, len);
             return result;
-        }
-
-        internal static string GetProtocolVersion(SafeSslHandle ssl)
-        {
-            return Marshal.PtrToStringAnsi(SslGetVersion(ssl));
         }
 
         [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_GetSslConnectionInfo")]
@@ -125,6 +123,7 @@ internal static partial class Interop
         internal static extern int SslGetFinished(SafeSslHandle ssl, IntPtr buf, int count);
 
         [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslSessionReused")]
+        [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool SslSessionReused(SafeSslHandle ssl);
 
         [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslAddExtraChainCert")]
@@ -132,6 +131,25 @@ internal static partial class Interop
 
         [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslGetClientCAList")]
         private static extern SafeSharedX509NameStackHandle SslGetClientCAList_private(SafeSslHandle ssl);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_SslGetCurrentCipherId")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool SslGetCurrentCipherId(SafeSslHandle ssl, out int cipherId);
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_GetOpenSslCipherSuiteName")]
+        private static extern IntPtr GetOpenSslCipherSuiteName(SafeSslHandle ssl, int cipherSuite, out int isTls12OrLower);
+
+        internal static string GetOpenSslCipherSuiteName(SafeSslHandle ssl, TlsCipherSuite cipherSuite, out bool isTls12OrLower)
+        {
+            string ret = Marshal.PtrToStringAnsi(GetOpenSslCipherSuiteName(ssl, (int)cipherSuite, out int isTls12OrLowerInt));
+            isTls12OrLower = isTls12OrLowerInt != 0;
+            return ret;
+        }
+
+        [DllImport(Libraries.CryptoNative, EntryPoint = "CryptoNative_Tls13Supported")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool Tls13SupportedImpl();
+        internal static readonly bool Tls13Supported = Tls13SupportedImpl();
 
         internal static SafeSharedX509NameStackHandle SslGetClientCAList(SafeSslHandle ssl)
         {
@@ -152,12 +170,17 @@ internal static partial class Interop
             Debug.Assert(chain != null, "X509Chain should not be null");
             Debug.Assert(chain.ChainElements.Count > 0, "chain.Build should have already been called");
 
-            for (int i = chain.ChainElements.Count - 2; i > 0; i--)
+            // Don't count the last item (the root)
+            int stop = chain.ChainElements.Count - 1;
+
+            // Don't include the first item (the cert whose private key we have)
+            for (int i = 1; i < stop; i++)
             {
                 SafeX509Handle dupCertHandle = Crypto.X509UpRef(chain.ChainElements[i].Certificate.Handle);
                 Crypto.CheckValidOpenSslHandle(dupCertHandle);
                 if (!SslAddExtraChainCert(sslContext, dupCertHandle))
                 {
+                    Crypto.ErrClearError();
                     dupCertHandle.Dispose(); // we still own the safe handle; clean it up
                     return false;
                 }

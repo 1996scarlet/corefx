@@ -49,7 +49,10 @@ namespace System.Net.Http
             string algorithm;
             if (digestResponse.Parameters.TryGetValue(Algorithm, out algorithm))
             {
-                if (algorithm != Sha256 && algorithm != Md5 && algorithm != Sha256Sess && algorithm != MD5Sess)
+                if (!algorithm.Equals(Sha256, StringComparison.OrdinalIgnoreCase) &&
+                    !algorithm.Equals(Md5, StringComparison.OrdinalIgnoreCase) &&
+                    !algorithm.Equals(Sha256Sess, StringComparison.OrdinalIgnoreCase) &&
+                    !algorithm.Equals(MD5Sess, StringComparison.OrdinalIgnoreCase))
                 {
                     if (NetEventSource.IsEnabled) NetEventSource.Error(digestResponse, "Algorithm not supported: {algorithm}");
                     return null;
@@ -88,9 +91,9 @@ namespace System.Net.Http
             }
             else
             {
-                string usernameStar;
-                if (HeaderUtilities.IsInputEncoded5987(credential.UserName, out usernameStar))
+                if (HeaderUtilities.ContainsNonAscii(credential.UserName))
                 {
+                    string usernameStar = HeaderUtilities.Encode5987(credential.UserName);
                     sb.AppendKeyValue(UsernameStar, usernameStar, includeQuotes: false);
                 }
                 else
@@ -138,7 +141,7 @@ namespace System.Net.Http
 
             // Calculate response
             string a1 = credential.UserName + ":" + realm + ":" + credential.Password;
-            if (algorithm.IndexOf("sess") != -1)
+            if (algorithm.EndsWith("sess", StringComparison.OrdinalIgnoreCase))
             {
                 a1 = ComputeHash(a1, algorithm) + ":" + nonce + ":" + cnonce;
             }
@@ -209,7 +212,7 @@ namespace System.Net.Http
         {
             // Disable MD5 insecure warning.
 #pragma warning disable CA5351
-            using (HashAlgorithm hash = algorithm.Contains(Sha256) ? SHA256.Create() : (HashAlgorithm)MD5.Create())
+            using (HashAlgorithm hash = algorithm.StartsWith(Sha256, StringComparison.OrdinalIgnoreCase) ? SHA256.Create() : (HashAlgorithm)MD5.Create())
 #pragma warning restore CA5351
             {
                 Span<byte> result = stackalloc byte[hash.HashSize / 8]; // HashSize is in bits
@@ -405,6 +408,9 @@ namespace System.Net.Http
 
     internal static class StringBuilderExtensions
     {
+        // Characters that require escaping in quoted string
+        private static readonly char[] SpecialCharacters = new[] { '"', '\\' };
+
         public static void AppendKeyValue(this StringBuilder sb, string key, string value, bool includeQuotes = true, bool includeComma = true)
         {
             sb.Append(key);
@@ -412,12 +418,29 @@ namespace System.Net.Http
             if (includeQuotes)
             {
                 sb.Append('"');
-            }
-
-            sb.Append(value);
-            if (includeQuotes)
-            {
+                int lastSpecialIndex = 0;
+                int specialIndex;
+                while (true)
+                {
+                    specialIndex = value.IndexOfAny(SpecialCharacters, lastSpecialIndex);
+                    if (specialIndex >= 0)
+                    {
+                        sb.Append(value, lastSpecialIndex, specialIndex - lastSpecialIndex);
+                        sb.Append('\\');
+                        sb.Append(value[specialIndex]);
+                        lastSpecialIndex = specialIndex + 1;
+                    }
+                    else
+                    {
+                        sb.Append(value, lastSpecialIndex, value.Length - lastSpecialIndex);
+                        break;
+                    }
+                }
                 sb.Append('"');
+            }
+            else
+            {
+                sb.Append(value);
             }
 
             if (includeComma)

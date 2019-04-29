@@ -3,11 +3,12 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 
 namespace System.Reflection
 {
-    public abstract class Module : ICustomAttributeProvider, ISerializable
+    public abstract partial class Module : ICustomAttributeProvider, ISerializable
     {
         protected Module() { }
 
@@ -114,69 +115,54 @@ namespace System.Reflection
 
         public override bool Equals(object o) => base.Equals(o);
         public override int GetHashCode() => base.GetHashCode();
-
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(Module left, Module right)
         {
-            if (object.ReferenceEquals(left, right))
+            // Test "right" first to allow branch elimination when inlined for null checks (== null)
+            // so it can become a simple test
+            if (right is null)
+            {
+                // return true/false not the test result https://github.com/dotnet/coreclr/issues/914
+                return (left is null) ? true : false;
+            }
+
+            // Try fast reference equality and opposite null check prior to calling the slower virtual Equals
+            if ((object)left == (object)right)
+            {
                 return true;
+            }
 
-            if ((object)left == null || (object)right == null)
-                return false;
-
-            return left.Equals(right);
+            return (left is null) ? false : left.Equals(right);
         }
 
         public static bool operator !=(Module left, Module right) => !(left == right);
 
         public override string ToString() => ScopeName;
 
-        public static readonly TypeFilter FilterTypeName = FilterTypeNameImpl;
-        public static readonly TypeFilter FilterTypeNameIgnoreCase = FilterTypeNameIgnoreCaseImpl;
+        public static readonly TypeFilter FilterTypeName = (m, c) => FilterTypeNameImpl(m, c, StringComparison.Ordinal);
+        public static readonly TypeFilter FilterTypeNameIgnoreCase = (m, c) => FilterTypeNameImpl(m, c, StringComparison.OrdinalIgnoreCase);
 
         private const BindingFlags DefaultLookup = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public;
 
         // FilterTypeName 
         // This method will filter the class based upon the name.  It supports
         //    a trailing wild card.
-        private static bool FilterTypeNameImpl(Type cls, object filterCriteria)
+        private static bool FilterTypeNameImpl(Type cls, object filterCriteria, StringComparison comparison)
         {
             // Check that the criteria object is a String object
-            if (filterCriteria == null || !(filterCriteria is string))
+            if (!(filterCriteria is string str))
+            {
                 throw new InvalidFilterCriteriaException(SR.InvalidFilterCriteriaException_CritString);
-
-            string str = (string)filterCriteria;
-
+            }
             // Check to see if this is a prefix or exact match requirement
             if (str.Length > 0 && str[str.Length - 1] == '*')
             {
-                str = str.Substring(0, str.Length - 1);
-                return cls.Name.StartsWith(str, StringComparison.Ordinal);
+                ReadOnlySpan<char> slice = str.AsSpan(0, str.Length - 1);
+                return cls.Name.AsSpan().StartsWith(slice, comparison);
             }
 
-            return cls.Name.Equals(str);
-        }
-
-        // FilterFieldNameIgnoreCase
-        // This method filter the Type based upon name, it ignores case.
-        private static bool FilterTypeNameIgnoreCaseImpl(Type cls, object filterCriteria)
-        {
-            // Check that the criteria object is a String object
-            if (filterCriteria == null || !(filterCriteria is string))
-                throw new InvalidFilterCriteriaException(SR.InvalidFilterCriteriaException_CritString);
-
-            string str = (string)filterCriteria;
-
-            // Check to see if this is a prefix or exact match requirement
-            if (str.Length > 0 && str[str.Length - 1] == '*')
-            {
-                str = str.Substring(0, str.Length - 1);
-                string name = cls.Name;
-                if (name.Length >= str.Length)
-                    return (string.Compare(name, 0, str, 0, str.Length, StringComparison.OrdinalIgnoreCase) == 0);
-                else
-                    return false;
-            }
-            return (string.Compare(str, cls.Name, StringComparison.OrdinalIgnoreCase) == 0);
+            return cls.Name.Equals(str, comparison);
         }
     }
 }

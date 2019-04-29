@@ -67,7 +67,7 @@ namespace System.Xml
                     return FinishInitTextReaderAsync();
                 default:
                     //should never hit here
-                    Debug.Assert(false, "Invalid InitInputType");
+                    Debug.Fail("Invalid InitInputType");
                     return Task.CompletedTask;
             }
         }
@@ -171,7 +171,7 @@ namespace System.Xml
                     // Needed only for XmlTextReader
                     //XmlTextReader can't execute Async method.
                     case ParsingFunction.OpenUrl:
-                        Debug.Assert(false);
+                        Debug.Fail($"Unexpected parsing function {_parsingFunction}");
                         break;
                     case ParsingFunction.SwitchToInteractive:
                         Debug.Assert(!_ps.appendMode);
@@ -260,7 +260,7 @@ namespace System.Xml
                     case ParsingFunction.InReadElementContentAsBinary:
                         return FinishReadElementContentAsBinaryAsync().CallBoolTaskFuncWhenFinishAsync(thisRef => thisRef.ReadAsync(), this);
                     default:
-                        Debug.Assert(false);
+                        Debug.Fail($"Unexpected parsing function {_parsingFunction}");
                         break;
                 }
             }
@@ -319,7 +319,7 @@ namespace System.Xml
                 switch (_parsingFunction)
                 {
                     case ParsingFunction.InReadAttributeValue:
-                        Debug.Assert(false);
+                        Debug.Fail($"Unexpected parsing function {_parsingFunction}");
                         break;
                     // Needed only for XmlTextReader (ReadChars, ReadBase64, ReadBinHex)
                     case ParsingFunction.InIncrementalRead:
@@ -745,8 +745,7 @@ namespace System.Xml
                 while (readCount < count && !endOfValue)
                 {
                     int orChars = 0;
-
-                    var tuple_0 = await ParseTextAsync(orChars);
+                    var tuple_0 = await ParseTextAsync(orChars).ConfigureAwait(false);
                     startPos = tuple_0.Item1;
                     endPos = tuple_0.Item2;
                     orChars = tuple_0.Item3;
@@ -1057,7 +1056,7 @@ namespace System.Xml
                     return ParseDtdFromParserContextAsync();
 
                 default:
-                    Debug.Assert(false, "Unhandled DtdProcessing enumeration value.");
+                    Debug.Fail("Unhandled DtdProcessing enumeration value.");
                     break;
             }
 
@@ -1493,7 +1492,7 @@ namespace System.Xml
                             xmlDeclState = 3;
                             break;
                         default:
-                            Debug.Assert(false);
+                            Debug.Fail($"Unexpected xmlDeclState {xmlDeclState}");
                             break;
                     }
                     sb.Append(chars, _ps.charPos, pos - _ps.charPos);
@@ -2357,7 +2356,7 @@ namespace System.Xml
                     ThrowUnexpectedToken(pos, ">");
                 }
 
-                Debug.Assert(false, "We should never get to this point.");
+                Debug.Fail("We should never get to this point.");
             }
 
             Debug.Assert(_index > 0);
@@ -2962,7 +2961,7 @@ namespace System.Xml
                     {
                         if (_ps.chars[_ps.charPos] != (char)0xD)
                         {
-                            Debug.Assert(false, "We should never get to this point.");
+                            Debug.Fail("We should never get to this point.");
                             Throw(SR.Xml_UnexpectedEOF1);
                         }
                         Debug.Assert(_ps.isEof);
@@ -2983,8 +2982,8 @@ namespace System.Xml
                         }
 
                         if (HandleEntityEnd(true))
-                        { // no EndEntity reporting while parsing attributes
-                            Debug.Assert(false);
+                        {
+                            Debug.Fail("no EndEntity reporting while parsing attributes");
                             Throw(SR.Xml_InternalError);
                         }
                         // update info for the next attribute value chunk
@@ -3094,7 +3093,7 @@ namespace System.Xml
                 ValueTuple<int, int, int, bool> tuple_9;
                 do
                 {
-                    tuple_9 = await ParseTextAsync(orChars);
+                    tuple_9 = await ParseTextAsync(orChars).ConfigureAwait(false);
                     startPos = tuple_9.Item1;
                     endPos = tuple_9.Item2;
                     orChars = tuple_9.Item3;
@@ -3144,7 +3143,7 @@ namespace System.Xml
                             _stringBuilder.Append(_ps.chars, startPos, endPos - startPos);
                         }
 
-                        tuple_11 = await ParseTextAsync(orChars);
+                        tuple_11 = await ParseTextAsync(orChars).ConfigureAwait(false);
                         startPos = tuple_11.Item1;
                         endPos = tuple_11.Item2;
                         orChars = tuple_11.Item3;
@@ -3190,7 +3189,7 @@ namespace System.Xml
                     }
                     do
                     {
-                        var tuple_12 = await ParseTextAsync(orChars);
+                        var tuple_12 = await ParseTextAsync(orChars).ConfigureAwait(false);
                         startPos = tuple_12.Item1;
                         endPos = tuple_12.Item2;
                         orChars = tuple_12.Item3;
@@ -3214,7 +3213,7 @@ namespace System.Xml
                             ValueTuple<int, int, int, bool> tuple_13;
                             do
                             {
-                                tuple_13 = await ParseTextAsync(orChars);
+                                tuple_13 = await ParseTextAsync(orChars).ConfigureAwait(false);
                                 startPos = tuple_13.Item1;
                                 endPos = tuple_13.Item2;
                                 orChars = tuple_13.Item3;
@@ -3677,7 +3676,7 @@ namespace System.Xml
             int endPos;
             int orChars = 0;
 
-            var tuple_15 = await ParseTextAsync(orChars);
+            var tuple_15 = await ParseTextAsync(orChars).ConfigureAwait(false);
             startPos = tuple_15.Item1;
             endPos = tuple_15.Item2;
             orChars = tuple_15.Item3;
@@ -3686,7 +3685,7 @@ namespace System.Xml
             {
                 _stringBuilder.Append(_ps.chars, startPos, endPos - startPos);
 
-                tuple_15 = await ParseTextAsync(orChars);
+                tuple_15 = await ParseTextAsync(orChars).ConfigureAwait(false);
                 startPos = tuple_15.Item1;
                 endPos = tuple_15.Item2;
                 orChars = tuple_15.Item3;
@@ -3758,7 +3757,7 @@ namespace System.Xml
             ValueTuple<int, int, int, bool> tuple_16;
             do
             {
-                tuple_16 = await ParseTextAsync(orChars);
+                tuple_16 = await ParseTextAsync(orChars).ConfigureAwait(false);
                 startPos = tuple_16.Item1;
                 endPos = tuple_16.Item2;
                 orChars = tuple_16.Item3;
@@ -4056,7 +4055,7 @@ namespace System.Xml
             int nameEndPos = await ParseNameAsync().ConfigureAwait(false);
             string target = _nameTable.Add(_ps.chars, _ps.charPos, nameEndPos - _ps.charPos);
 
-            if (string.Compare(target, "xml", StringComparison.OrdinalIgnoreCase) == 0)
+            if (string.Equals(target, "xml", StringComparison.OrdinalIgnoreCase))
             {
                 Throw(target.Equals("xml") ? SR.Xml_XmlDeclNotFirst : SR.Xml_InvalidPIName, target);
             }
@@ -4936,7 +4935,7 @@ namespace System.Xml
                     {
                         if (_ps.chars[_ps.charPos] != (char)0xD)
                         {
-                            Debug.Assert(false, "We should never get to this point.");
+                            Debug.Fail("We should never get to this point.");
                             Throw(SR.Xml_UnexpectedEOF1);
                         }
                         Debug.Assert(_ps.isEof);
@@ -5042,7 +5041,7 @@ namespace System.Xml
                     }
                     if (_ps.chars[_ps.charPos] != (char)0xD)
                     {
-                        Debug.Assert(false, "We should never get to this point.");
+                        Debug.Fail("We should never get to this point.");
                         Throw(SR.Xml_UnexpectedEOF1);
                     }
                     Debug.Assert(_ps.isEof);
@@ -5587,7 +5586,7 @@ namespace System.Xml
                         // store current line info and parse more text
                         _incReadLineInfo.Set(_ps.LineNo, _ps.LinePos);
 
-                        var tuple_36 = await ParseTextAsync(orChars);
+                        var tuple_36 = await ParseTextAsync(orChars).ConfigureAwait(false);
                         startPos = tuple_36.Item1;
                         endPos = tuple_36.Item2;
                         orChars = tuple_36.Item3;

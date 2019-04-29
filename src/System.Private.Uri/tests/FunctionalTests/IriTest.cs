@@ -1,9 +1,11 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Text;
+using System.Collections.Generic;
 using System.Common.Tests;
+using System.Linq;
+using System.Text;
 
 using Xunit;
 
@@ -14,7 +16,7 @@ namespace System.PrivateUri.Tests
     /// </summary>
     public class IriTest
     {
-        // List built based on http://msdn.microsoft.com/en-us/library/aa292086(v=vs.71).aspx
+        // List built based on https://www.microsoft.com/en-us/download/details.aspx?id=55979
         private string[] _testedLocales =
         {
             "en-us",
@@ -335,7 +337,7 @@ namespace System.PrivateUri.Tests
                     {
                         Assert.Equal(
                             0,
-                            String.CompareOrdinal(results1[i], results2[i]));
+                            string.CompareOrdinal(results1[i], results2[i]));
                     }
                 }
             }
@@ -349,37 +351,37 @@ namespace System.PrivateUri.Tests
             switch (component)
             {
                 case UriComponents.Fragment:
-                    uriString = String.Format(
+                    uriString = string.Format(
                         "http://userInfo@server:80/path/resource.ext?query=qvalue#{0}",
                         uriInput);
                     break;
                 case UriComponents.Host:
-                    uriString = String.Format(
+                    uriString = string.Format(
                         "http://userInfo@{0}:80/path/resource.ext?query=qvalue#fragment",
                         uriInput);
                     break;
                 case UriComponents.Path:
-                    uriString = String.Format(
+                    uriString = string.Format(
                         "http://userInfo@server:80/{0}/{0}/resource.ext?query=qvalue#fragment",
                         uriInput);
                     break;
                 case UriComponents.Port:
-                    uriString = String.Format(
+                    uriString = string.Format(
                         "http://userInfo@server:{0}/path/resource.ext?query=qvalue#fragment",
                         uriInput);
                     break;
                 case UriComponents.Query:
-                    uriString = String.Format(
+                    uriString = string.Format(
                         "http://userInfo@server:80/path/resource.ext?query{0}=qvalue{0}#fragment",
                         uriInput);
                     break;
                 case UriComponents.Scheme:
-                    uriString = String.Format(
+                    uriString = string.Format(
                         "{0}://userInfo@server:80/path/resource.ext?query=qvalue#fragment",
                         uriInput);
                     break;
                 case UriComponents.UserInfo:
-                    uriString = String.Format(
+                    uriString = string.Format(
                         "http://{0}@server:80/path/resource.ext?query=qvalue#fragment",
                         uriInput);
                     break;
@@ -407,7 +409,7 @@ namespace System.PrivateUri.Tests
 
         /// <summary>
         /// First column contains input characters found to be potential issues with the current implementation.
-        /// The second column contains the current (.Net Core 2.1/Framework 4.7.2) Uri behavior for Uri normalization.
+        /// The second column contains the current (.NET Core 2.1/Framework 4.7.2) Uri behavior for Uri normalization.
         /// </summary>
         private static string[,] s_checkIsReservedEscapingStrings =
         {
@@ -566,6 +568,36 @@ namespace System.PrivateUri.Tests
             Assert.True(Uri.TryCreate(uriString, UriKind.RelativeOrAbsolute, out href));
             Assert.True(Uri.TryCreate(baseIri, href, out hrefAbsolute));
             Assert.Equal("http://www.contoso.com/%C3%A8", hrefAbsolute.AbsoluteUri);
+        }
+
+        public static IEnumerable<object[]> AllForbiddenDecompositions() =>
+            from host in new[] { "canada.c\u2100.microsoft.com", // Unicode U+2100 'Account Of' decomposes to 'a/c'
+                                 "canada.c\u2488.microsoft.com", // Unicode U+2488 'Digit One Full Stop" decomposes to '1.'
+                                 "canada.c\u2048.microsoft.com", // Unicode U+2048 'Question Exclamation Mark" decomposes to '?!'
+                                 "canada.c\uD83C\uDD00.microsoft.com" } // Unicode U+2488 'Digit Zero Full Stop" decomposes to '0.'
+            from scheme in new[] { "http", // Known scheme.
+                                   "test" } // Unknown scheme.
+            select new object[] { scheme, host };
+
+        [Theory]
+        [MemberData(nameof(AllForbiddenDecompositions))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "Disable until the .NET FX CI machines get the latest patches.")]
+        public void Iri_AllForbiddenDecompositions_IdnHostThrows(string scheme, string host)
+        {
+            Uri uri = new Uri(scheme + "://" + host);
+            Assert.Throws<UriFormatException>(() => uri.IdnHost);
+        }
+
+        [Theory]
+        [MemberData(nameof(AllForbiddenDecompositions))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "Disable until the .NET FX CI machines get the latest patches.")]
+        public void Iri_AllForbiddenDecompositions_NonIdnPropertiesOk(string scheme, string host)
+        {
+            Uri uri = new Uri(scheme + "://" + host);
+            Assert.Equal(host, uri.Host);
+            Assert.Equal(host, uri.DnsSafeHost);
+            Assert.Equal(host, uri.Authority);
+            Assert.Equal(scheme + "://" + host + "/", uri.AbsoluteUri);
         }
     }
 }

@@ -1189,7 +1189,7 @@ namespace System.Reflection.Metadata.Tests
 
             // If the last index of '.' in a namespace name is == the current name's length, then
             // that ns is a direct child of the current one!
-            IList<String> expChildren = null;
+            IList<string> expChildren = null;
 
             // Special case: Global NS's children won't have .s in them.
             if (isGlobalNamespace)
@@ -2134,7 +2134,7 @@ namespace System.Reflection.Metadata.Tests
         ///     Native Type (offset to #blob)
         /// </summary>
         [Fact]
-        private void ValidateFieldMarshal()
+        public void ValidateFieldMarshal()
         {
             var comParents = new int[]
             {

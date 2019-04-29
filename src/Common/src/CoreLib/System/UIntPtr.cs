@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
@@ -18,9 +19,9 @@ namespace System
     [Serializable]
     [CLSCompliant(false)]
     [System.Runtime.CompilerServices.TypeForwardedFrom("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089")]
-    public struct UIntPtr : IEquatable<UIntPtr>, ISerializable
+    public readonly struct UIntPtr : IEquatable<UIntPtr>, ISerializable
     {
-        private unsafe void* _value; // Do not rename (binary serialization)
+        private readonly unsafe void* _value; // Do not rename (binary serialization)
 
         [Intrinsic]
         public static readonly UIntPtr Zero;
@@ -60,7 +61,7 @@ namespace System
             _value = (void*)l;
         }
 
-        unsafe void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
+        void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
         {
             if (info == null)
                 throw new ArgumentNullException(nameof(info));
@@ -68,7 +69,7 @@ namespace System
             info.AddValue("value", ToUInt64());
         }
 
-        public unsafe override bool Equals(Object obj)
+        public unsafe override bool Equals(object? obj)
         {
             if (obj is UIntPtr)
             {
@@ -196,7 +197,7 @@ namespace System
             return new UIntPtr((nuint)pointer._value - (nuint)offset);
         }
 
-        public static unsafe int Size
+        public static int Size
         {
             [Intrinsic]
             [NonVersionable]
@@ -208,6 +209,9 @@ namespace System
 
         [Intrinsic]
         [NonVersionable]
+#if PROJECTN
+        [System.Runtime.CompilerServices.DependencyReductionRootAttribute]
+#endif
         public unsafe void* ToPointer()
         {
             return _value;

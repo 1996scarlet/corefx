@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <!-- shared configurations between shims and apicompat -->
+    <BuildConfigurations>
+      $(BuildConfigurations);
+      netcoreapp;
+      uap;
+    </BuildConfigurations>
+  </PropertyGroup>
+
+  <Import Project="..\Directory.Build.props" />
+
+  <Import Project="netfxreference.props" />
+
+  <PropertyGroup>
+    <IsNETCoreApp>true</IsNETCoreApp>
+    <IsUAP>true</IsUAP>
+    <NuGetTargetMoniker Condition="'$(NuGetTargetMoniker)' == ''">$(TargetFramework)</NuGetTargetMoniker>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- shared folder for ApiCompat.proj and shims.proj -->
+    <GenFacadesOutputPath>$(ArtifactsObjDir)shims/$(TargetGroup)/</GenFacadesOutputPath>
+  </PropertyGroup>
+</Project>

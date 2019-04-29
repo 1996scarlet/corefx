@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System;
 using System.Runtime.Serialization;
 
@@ -28,14 +29,13 @@ namespace System.Text
             }
         }
 
-        public override bool Equals(Object value)
+        public override bool Equals(object? value)
         {
-            EncoderExceptionFallback that = value as EncoderExceptionFallback;
-            if (that != null)
+            if (value is EncoderExceptionFallback that)
             {
-                return (true);
+                return true;
             }
-            return (false);
+            return false;
         }
 
         public override int GetHashCode()
@@ -57,18 +57,18 @@ namespace System.Text
 
         public override bool Fallback(char charUnknownHigh, char charUnknownLow, int index)
         {
-            if (!Char.IsHighSurrogate(charUnknownHigh))
+            if (!char.IsHighSurrogate(charUnknownHigh))
             {
                 throw new ArgumentOutOfRangeException(nameof(charUnknownHigh),
                     SR.Format(SR.ArgumentOutOfRange_Range, 0xD800, 0xDBFF));
             }
-            if (!Char.IsLowSurrogate(charUnknownLow))
+            if (!char.IsLowSurrogate(charUnknownLow))
             {
                 throw new ArgumentOutOfRangeException(nameof(charUnknownLow),
                     SR.Format(SR.ArgumentOutOfRange_Range, 0xDC00, 0xDFFF));
             }
 
-            int iTemp = Char.ConvertToUtf32(charUnknownHigh, charUnknownLow);
+            int iTemp = char.ConvertToUtf32(charUnknownHigh, charUnknownLow);
 
             // Fall back our char
             throw new EncoderFallbackException(
@@ -111,34 +111,34 @@ namespace System.Text
             HResult = HResults.COR_E_ARGUMENT;
         }
 
-        public EncoderFallbackException(String message)
+        public EncoderFallbackException(string? message)
             : base(message)
         {
             HResult = HResults.COR_E_ARGUMENT;
         }
 
-        public EncoderFallbackException(String message, Exception innerException)
+        public EncoderFallbackException(string? message, Exception? innerException)
             : base(message, innerException)
         {
             HResult = HResults.COR_E_ARGUMENT;
         }
 
         internal EncoderFallbackException(
-            String message, char charUnknown, int index) : base(message)
+            string? message, char charUnknown, int index) : base(message)
         {
             _charUnknown = charUnknown;
             _index = index;
         }
 
         internal EncoderFallbackException(
-            String message, char charUnknownHigh, char charUnknownLow, int index) : base(message)
+            string message, char charUnknownHigh, char charUnknownLow, int index) : base(message)
         {
-            if (!Char.IsHighSurrogate(charUnknownHigh))
+            if (!char.IsHighSurrogate(charUnknownHigh))
             {
                 throw new ArgumentOutOfRangeException(nameof(charUnknownHigh),
                     SR.Format(SR.ArgumentOutOfRange_Range, 0xD800, 0xDBFF));
             }
-            if (!Char.IsLowSurrogate(charUnknownLow))
+            if (!char.IsLowSurrogate(charUnknownLow))
             {
                 throw new ArgumentOutOfRangeException(nameof(CharUnknownLow),
                     SR.Format(SR.ArgumentOutOfRange_Range, 0xDC00, 0xDFFF));
@@ -158,7 +158,7 @@ namespace System.Text
         {
             get
             {
-                return (_charUnknown);
+                return _charUnknown;
             }
         }
 
@@ -166,7 +166,7 @@ namespace System.Text
         {
             get
             {
-                return (_charUnknownHigh);
+                return _charUnknownHigh;
             }
         }
 
@@ -174,7 +174,7 @@ namespace System.Text
         {
             get
             {
-                return (_charUnknownLow);
+                return _charUnknownLow;
             }
         }
 
@@ -189,7 +189,7 @@ namespace System.Text
         // Return true if the unknown character is a surrogate pair.
         public bool IsUnknownSurrogate()
         {
-            return (_charUnknownHigh != '\0');
+            return _charUnknownHigh != '\0';
         }
     }
 }

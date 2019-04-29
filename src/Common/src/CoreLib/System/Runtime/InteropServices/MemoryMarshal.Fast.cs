@@ -2,9 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System.Buffers;
+#nullable enable
 using System.Runtime.CompilerServices;
-using System.Collections.Generic;
 using Internal.Runtime.CompilerServices;
 
 namespace System.Runtime.InteropServices
@@ -24,7 +23,7 @@ namespace System.Runtime.InteropServices
         /// Thrown when <typeparamref name="T"/> contains pointers.
         /// </exception>
         /// <exception cref="System.OverflowException">
-        /// Thrown if the Length property of the new Span would exceed Int32.MaxValue.
+        /// Thrown if the Length property of the new Span would exceed int.MaxValue.
         /// </exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Span<byte> AsBytes<T>(Span<T> span)
@@ -47,7 +46,7 @@ namespace System.Runtime.InteropServices
         /// Thrown when <typeparamref name="T"/> contains pointers.
         /// </exception>
         /// <exception cref="System.OverflowException">
-        /// Thrown if the Length property of the new Span would exceed Int32.MaxValue.
+        /// Thrown if the Length property of the new Span would exceed int.MaxValue.
         /// </exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ReadOnlySpan<byte> AsBytes<T>(ReadOnlySpan<T> span)
@@ -104,7 +103,7 @@ namespace System.Runtime.InteropServices
         /// These types may not contain pointers or references. This is checked at runtime in order to preserve type safety.
         /// </summary>
         /// <remarks>
-        /// Supported only for platforms that support misaligned memory access.
+        /// Supported only for platforms that support misaligned memory access or when the memory block is aligned by other means.
         /// </remarks>
         /// <param name="span">The source slice, of type <typeparamref name="TFrom"/>.</param>
         /// <exception cref="System.ArgumentException">
@@ -159,7 +158,7 @@ namespace System.Runtime.InteropServices
         /// These types may not contain pointers or references. This is checked at runtime in order to preserve type safety.
         /// </summary>
         /// <remarks>
-        /// Supported only for platforms that support misaligned memory access.
+        /// Supported only for platforms that support misaligned memory access or when the memory block is aligned by other means.
         /// </remarks>
         /// <param name="span">The source slice, of type <typeparamref name="TFrom"/>.</param>
         /// <exception cref="System.ArgumentException">
@@ -216,6 +215,7 @@ namespace System.Runtime.InteropServices
         /// </summary>
         /// <param name="reference">A reference to data.</param>
         /// <param name="length">The number of <typeparamref name="T"/> elements the memory contains.</param>
+        /// <returns>The lifetime of the returned span will not be validated for safety by span-aware languages.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Span<T> CreateSpan<T>(ref T reference, int length) => new Span<T>(ref reference, length);
 
@@ -226,6 +226,7 @@ namespace System.Runtime.InteropServices
         /// </summary>
         /// <param name="reference">A reference to data.</param>
         /// <param name="length">The number of <typeparamref name="T"/> elements the memory contains.</param>
+        /// <returns>The lifetime of the returned span will not be validated for safety by span-aware languages.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ReadOnlySpan<T> CreateReadOnlySpan<T>(ref T reference, int length) => new ReadOnlySpan<T>(ref reference, length);
     }

@@ -19,7 +19,7 @@ namespace System.DirectoryServices.AccountManagement
 
         static internal bool IsOfObjectClass(DirectoryEntry de, string classToCompare)
         {
-            return (String.Compare(de.SchemaClassName, classToCompare, StringComparison.OrdinalIgnoreCase) == 0);
+            return string.Equals(de.SchemaClassName, classToCompare, StringComparison.OrdinalIgnoreCase);
         }
 
         internal static bool GetOSVersion(DirectoryEntry computerDE, out int versionMajor, out int versionMinor)
@@ -66,40 +66,26 @@ namespace System.DirectoryServices.AccountManagement
 
             try
             {
-                versionMajor = Int32.Parse(versionComponents[0], CultureInfo.InvariantCulture);
+                versionMajor = int.Parse(versionComponents[0], CultureInfo.InvariantCulture);
 
                 if (versionComponents.Length > 1)
-                    versionMinor = Int32.Parse(versionComponents[1], CultureInfo.InvariantCulture);
+                    versionMinor = int.Parse(versionComponents[1], CultureInfo.InvariantCulture);
 
                 // Sanity check: there are no negetive OS versions, nor is there a version "0".
                 if (versionMajor <= 0 || versionMinor < 0)
                 {
-                    Debug.Fail(String.Format(
-                                    CultureInfo.CurrentCulture,
-                                    "SAMUtils.GetOSVersion: {0} claims to have negetive OS version, {1}",
-                                    computerDE.Path,
-                                    version));
-
+                    Debug.Fail("SAMUtils.GetOSVersion: {computerDE.Path} claims to have negetive OS version, {version}");
                     return false;
                 }
             }
             catch (FormatException)
             {
-                Debug.Fail(String.Format(
-                                CultureInfo.CurrentCulture,
-                                "SAMUtils.GetOSVersion: FormatException on {0} for {1}",
-                                version,
-                                computerDE.Path));
-
+                Debug.Fail($"SAMUtils.GetOSVersion: FormatException on {version} for {computerDE.Path}");
                 return false;
             }
             catch (OverflowException)
             {
-                Debug.Fail(String.Format(
-                                CultureInfo.CurrentCulture,
-                                "SAMUtils.GetOSVersion: OverflowException on {0} for {1}",
-                                version,
-                                computerDE.Path));
+                Debug.Fail($"SAMUtils.GetOSVersion: OverflowException on {version} for {computerDE.Path}");
                 return false;
             }
 
@@ -123,11 +109,7 @@ namespace System.DirectoryServices.AccountManagement
             }
             else
             {
-                Debug.Fail(String.Format(
-                                CultureInfo.CurrentCulture,
-                                "SAMUtils.DirectoryEntryAsPrincipal: fell off end, Path={0}, SchemaClassName={1}",
-                                de.Path,
-                                de.SchemaClassName));
+                Debug.Fail($"SAMUtils.DirectoryEntryAsPrincipal: fell off end, Path={de.Path}, SchemaClassName={de.SchemaClassName}");
                 return null;
             }
         }

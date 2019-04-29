@@ -256,7 +256,7 @@ namespace System.Linq.Tests
             {
                 // The full .NET Framework uses unsigned arithmetic summing up collection counts.
                 // See https://github.com/dotnet/corefx/pull/11492.
-                if (PlatformDetection.IsFullFramework)
+                if (PlatformDetection.IsFullFramework || PlatformDetection.IsUap)
                 {
                     testCode();
                 }
@@ -443,7 +443,7 @@ namespace System.Linq.Tests
             }
         }
 
-        private static IEnumerable<object[]> GetToArrayDataSources()
+        public static IEnumerable<object[]> GetToArrayDataSources()
         {
             // Marker at the end
             yield return new object[]

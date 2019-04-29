@@ -39,7 +39,14 @@ namespace System.Runtime.InteropServices
         /// </summary>
         public static bool TryGetReadOnlyMemory<T>(ReadOnlySequence<T> sequence, out ReadOnlyMemory<T> memory)
         {
-            return sequence.TryGetReadOnlyMemory(out memory);
+            if (!sequence.IsSingleSegment)
+            {
+                memory = default;
+                return false;
+            }
+
+            memory = sequence.First;
+            return true;
         }
 
         /// <summary>
@@ -49,6 +56,23 @@ namespace System.Runtime.InteropServices
         internal static bool TryGetString(ReadOnlySequence<char> sequence, out string text, out int start, out int length)
         {
             return sequence.TryGetString(out text, out start, out length);
+        }
+
+        /// <summary>
+        /// Try to read the given type out of the buffer if possible. Warning: this is dangerous to use with arbitrary
+        /// structs- see remarks for full details.
+        /// </summary>
+        /// <remarks>
+        /// IMPORTANT: The read is a straight copy of bits. If a struct depends on specific state of it's members to
+        /// behave correctly this can lead to exceptions, etc. If reading endian specific integers, use the explicit
+        /// overloads such as <see cref="SequenceReaderExtensions.TryReadLittleEndian(ref SequenceReader{byte}, out int)"/>
+        /// </remarks>
+        /// <returns>
+        /// True if successful. <paramref name="value"/> will be default if failed (due to lack of space).
+        /// </returns>
+        public static bool TryRead<T>(ref SequenceReader<byte> reader, out T value) where T : unmanaged
+        {
+            return reader.TryRead<T>(out value);
         }
     }
 }

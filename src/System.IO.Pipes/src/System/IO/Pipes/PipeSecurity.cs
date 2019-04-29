@@ -9,7 +9,6 @@ using System.Runtime.InteropServices;
 
 namespace System.IO.Pipes
 {
-    //[System.Security.Permissions.HostProtection(MayLeakOnAbort = true)]
     public class PipeSecurity : NativeObjectSecurity
     {
         public PipeSecurity()
@@ -232,7 +231,7 @@ namespace System.IO.Pipes
             }
         }
 
-        protected internal void Persist(String name)
+        protected internal void Persist(string name)
         {
             WriteLock();
 

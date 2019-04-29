@@ -5,6 +5,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
 namespace System.Tests
@@ -87,9 +88,24 @@ namespace System.Tests
             Assert.Equal(expected, double.IsSubnormal(d));
         }
 
+        public static IEnumerable<object[]> Parse_ValidWithOffsetCount_TestData()
+        {
+            foreach (object[] inputs in Parse_Valid_TestData())
+            {
+                yield return new object[] { inputs[0], 0, ((string)inputs[0]).Length, inputs[1], inputs[2], inputs[3] };
+            }
+
+            const NumberStyles DefaultStyle = NumberStyles.Float | NumberStyles.AllowThousands;
+            yield return new object[] { "-123", 0, 3, DefaultStyle, null, (double)-12 };
+            yield return new object[] { "-123", 1, 3, DefaultStyle, null, (double)123 };
+            yield return new object[] { "1E23", 0, 3, DefaultStyle, null, 1E2 };
+            yield return new object[] { "(123)", 1, 3, NumberStyles.AllowParentheses, new NumberFormatInfo() { NumberDecimalSeparator = "." }, 123 };
+            yield return new object[] { "-Infinity", 1, 8, NumberStyles.Any, NumberFormatInfo.InvariantInfo, double.PositiveInfinity };
+        }
+
         [Theory]
-        [MemberData(nameof(Parse_Valid_TestData))]
-        public static void Parse_Span_Valid(string value, NumberStyles style, IFormatProvider provider, double expected)
+        [MemberData(nameof(Parse_ValidWithOffsetCount_TestData))]
+        public static void Parse_Span_Valid(string value, int offset, int count, NumberStyles style, IFormatProvider provider, double expected)
         {
             bool isDefaultProvider = provider == null || provider == NumberFormatInfo.CurrentInfo;
             double result;
@@ -98,18 +114,18 @@ namespace System.Tests
                 // Use Parse(string) or Parse(string, IFormatProvider)
                 if (isDefaultProvider)
                 {
-                    Assert.True(double.TryParse(value.AsSpan(), out result));
+                    Assert.True(double.TryParse(value.AsSpan(offset, count), out result));
                     Assert.Equal(expected, result);
 
-                    Assert.Equal(expected, double.Parse(value.AsSpan()));
+                    Assert.Equal(expected, double.Parse(value.AsSpan(offset, count)));
                 }
 
-                Assert.Equal(expected, double.Parse(value.AsSpan(), provider: provider));
+                Assert.Equal(expected, double.Parse(value.AsSpan(offset, count), provider: provider));
             }
 
-            Assert.Equal(expected, double.Parse(value.AsSpan(), style, provider));
+            Assert.Equal(expected, double.Parse(value.AsSpan(offset, count), style, provider));
 
-            Assert.True(double.TryParse(value.AsSpan(), style, provider, out result));
+            Assert.True(double.TryParse(value.AsSpan(offset, count), style, provider, out result));
             Assert.Equal(expected, result);
         }
 
@@ -129,11 +145,11 @@ namespace System.Tests
         [Fact]
         public static void TryFormat()
         {
-            RemoteInvoke(() =>
+            RemoteExecutor.Invoke(() =>
             {
                 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
-                foreach (var testdata in ToString_TestData())
+                foreach (var testdata in ToString_TestData_NotNetFramework())
                 {
                     double localI = (double)testdata[0];
                     string localFormat = (string)testdata[1];
@@ -171,8 +187,43 @@ namespace System.Tests
                     }
                 }
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }).Dispose();
+        }
+
+        public static IEnumerable<object[]> ToStringRoundtrip_TestData()
+        {
+            yield return new object[] { double.NegativeInfinity };
+            yield return new object[] { double.MinValue };
+            yield return new object[] { -Math.PI };
+            yield return new object[] { -Math.E };
+            yield return new object[] { -double.Epsilon };
+            yield return new object[] { -0.84551240822557006 };
+            yield return new object[] { -0.0 };
+            yield return new object[] { double.NaN };
+            yield return new object[] { 0.0 };
+            yield return new object[] { 0.84551240822557006 };
+            yield return new object[] { double.Epsilon };
+            yield return new object[] { Math.E };
+            yield return new object[] { Math.PI };
+            yield return new object[] { double.MaxValue };
+            yield return new object[] { double.PositiveInfinity };
+        }
+
+        [Theory]
+        [MemberData(nameof(ToStringRoundtrip_TestData))]
+        public static void ToStringRoundtrip(double value)
+        {
+            double result = double.Parse(value.ToString());
+            Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(result));
+        }
+
+        [Theory]
+        [MemberData(nameof(ToStringRoundtrip_TestData))]
+        public static void ToStringRoundtrip_R(double value)
+        {
+            double result = double.Parse(value.ToString("R"));
+            Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(result));
         }
     }
 }

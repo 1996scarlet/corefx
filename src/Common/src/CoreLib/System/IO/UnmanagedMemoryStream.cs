@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -39,7 +40,7 @@ namespace System.IO
     /// </summary>
     public class UnmanagedMemoryStream : Stream
     {
-        private SafeBuffer _buffer;
+        private SafeBuffer? _buffer;
         private unsafe byte* _mem;
         private long _length;
         private long _capacity;
@@ -47,7 +48,7 @@ namespace System.IO
         private long _offset;
         private FileAccess _access;
         private bool _isOpen;
-        private Task<Int32> _lastReadTask; // The last successful task returned from ReadAsync 
+        private Task<int>? _lastReadTask; // The last successful task returned from ReadAsync 
 
         /// <summary>
         /// Creates a closed stream.
@@ -456,7 +457,7 @@ namespace System.IO
         /// <param name="count">Maximum number of bytes to read.</param>       
         /// <param name="cancellationToken">Token that can be used to cancel this operation.</param>
         /// <returns>Task that can be used to access the number of bytes actually read.</returns>
-        public override Task<Int32> ReadAsync(Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer), SR.ArgumentNull_Buffer);
@@ -468,18 +469,18 @@ namespace System.IO
                 throw new ArgumentException(SR.Argument_InvalidOffLen);
 
             if (cancellationToken.IsCancellationRequested)
-                return Task.FromCanceled<Int32>(cancellationToken);
+                return Task.FromCanceled<int>(cancellationToken);
 
             try
             {
-                Int32 n = Read(buffer, offset, count);
-                Task<Int32> t = _lastReadTask;
+                int n = Read(buffer, offset, count);
+                Task<int>? t = _lastReadTask;
                 return (t != null && t.Result == n) ? t : (_lastReadTask = Task.FromResult<Int32>(n));
             }
             catch (Exception ex)
             {
                 Debug.Assert(!(ex is OperationCanceledException));
-                return Task.FromException<Int32>(ex);
+                return Task.FromException<int>(ex);
             }
         }
 
@@ -488,7 +489,7 @@ namespace System.IO
         /// </summary>
         /// <param name="buffer">Buffer to read the bytes to.</param>
         /// <param name="cancellationToken">Token that can be used to cancel this operation.</param>
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -511,7 +512,7 @@ namespace System.IO
                 // it then fall back to doing the ArrayPool/copy behavior.
                 return new ValueTask<int>(
                     MemoryMarshal.TryGetArray(buffer, out ArraySegment<byte> destinationArray) ?
-                        Read(destinationArray.Array, destinationArray.Offset, destinationArray.Count) :
+                        Read(destinationArray.Array!, destinationArray.Offset, destinationArray.Count) : // TODO-NULLABLE: https://github.com/dotnet/roslyn/issues/26761
                         Read(buffer.Span));
             }
             catch (Exception ex)
@@ -656,7 +657,7 @@ namespace System.IO
             if (buffer.Length - offset < count)
                 throw new ArgumentException(SR.Argument_InvalidOffLen);
 
-            WriteCore(new Span<byte>(buffer, offset, count));
+            WriteCore(new ReadOnlySpan<byte>(buffer, offset, count));
         }
 
         public override void Write(ReadOnlySpan<byte> buffer)
@@ -752,7 +753,7 @@ namespace System.IO
         /// <param name="count">Number of bytes to write.</param>
         /// <param name="cancellationToken">Token that can be used to cancel the operation.</param>
         /// <returns>Task that can be awaited </returns>
-        public override Task WriteAsync(Byte[] buffer, Int32 offset, Int32 count, CancellationToken cancellationToken)
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
             if (buffer == null)
                 throw new ArgumentNullException(nameof(buffer), SR.ArgumentNull_Buffer);
@@ -783,7 +784,7 @@ namespace System.IO
         /// </summary>
         /// <param name="buffer">Buffer that will be written.</param>
         /// <param name="cancellationToken">Token that can be used to cancel the operation.</param>
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -796,7 +797,7 @@ namespace System.IO
                 // Unlike ReadAsync, we could delegate to WriteAsync(byte[], ...) here, but we don't for consistency.
                 if (MemoryMarshal.TryGetArray(buffer, out ArraySegment<byte> sourceArray))
                 {
-                    Write(sourceArray.Array, sourceArray.Offset, sourceArray.Count);
+                    Write(sourceArray.Array!, sourceArray.Offset, sourceArray.Count); // TODO-NULLABLE: https://github.com/dotnet/roslyn/issues/26761
                 }
                 else
                 {

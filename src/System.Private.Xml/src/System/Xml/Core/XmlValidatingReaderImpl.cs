@@ -569,7 +569,7 @@ namespace System.Xml
                     _readBinaryHelper.Finish();
                     goto case ParsingFunction.Read;
                 default:
-                    Debug.Assert(false);
+                    Debug.Fail($"Unexpected parsing function {_parsingFunction}");
                     return false;
             }
         }
@@ -582,7 +582,7 @@ namespace System.Xml
         }
 
         // Returns NamespaceURI associated with the specified prefix in the current namespace scope.
-        public override String LookupNamespace(String prefix)
+        public override string LookupNamespace(string prefix)
         {
             return _coreReaderImpl.LookupNamespace(prefix);
         }

@@ -179,7 +179,7 @@ namespace System.Net
     }
 
     /// <summary>
-    /// <para>The FtpWebRequest class implements a basic FTP client interface.
+    /// The FtpWebRequest class implements a basic FTP client interface.
     /// </summary>
     public sealed class FtpWebRequest : WebRequest
     {
@@ -223,7 +223,7 @@ namespace System.Net
         private LazyAsyncResult _readAsyncResult;
         private LazyAsyncResult _requestCompleteAsyncResult;
 
-        private static readonly NetworkCredential s_defaultFtpNetworkCredential = new NetworkCredential("anonymous", "anonymous@", String.Empty);
+        private static readonly NetworkCredential s_defaultFtpNetworkCredential = new NetworkCredential("anonymous", "anonymous@", string.Empty);
         private const int s_DefaultTimeout = 100000;  // 100 seconds
         private static readonly TimerThread.Queue s_DefaultTimerQueue = TimerThread.GetOrCreateQueue(s_DefaultTimeout);
 
@@ -262,7 +262,7 @@ namespace System.Net
             }
             set
             {
-                if (String.IsNullOrEmpty(value))
+                if (string.IsNullOrEmpty(value))
                 {
                     throw new ArgumentException(SR.net_ftp_invalid_method_name, nameof(value));
                 }
@@ -300,7 +300,7 @@ namespace System.Net
                     throw new InvalidOperationException(SR.net_reqsubmitted);
                 }
 
-                if (String.IsNullOrEmpty(value))
+                if (string.IsNullOrEmpty(value))
                 {
                     throw new ArgumentException(SR.net_ftp_invalid_renameto, nameof(value));
                 }
@@ -1512,7 +1512,7 @@ namespace System.Net
         }
 
         /// <summary>
-        /// <para>Aborts underlying connection to FTP server (command & data)</para>
+        /// <para>Aborts underlying connection to FTP server (command &amp; data)</para>
         /// </summary>
         public override void Abort()
         {

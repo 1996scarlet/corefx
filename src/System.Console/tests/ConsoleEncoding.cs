@@ -7,9 +7,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
-public partial class ConsoleEncoding : RemoteExecutorTestBase
+public partial class ConsoleEncoding
 {
     public static IEnumerable<object[]> InputData()
     {
@@ -57,7 +58,7 @@ public partial class ConsoleEncoding : RemoteExecutorTestBase
 
             Assert.Equal(inputBytes, outBytes);
 
-            string inString = new String(Console.InputEncoding.GetChars(inputBytesNoBom));
+            string inString = new string(Console.InputEncoding.GetChars(inputBytesNoBom));
 
             string outString;
             using (MemoryStream ms = new MemoryStream(inputBytesNoBom, false))
@@ -79,7 +80,6 @@ public partial class ConsoleEncoding : RemoteExecutorTestBase
     }
 
     [Fact]
-    [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "https://github.com/dotnet/corefx/issues/21483")]
     public void TestValidEncodings()
     {
         Action<Encoding> check = encoding =>
@@ -120,7 +120,7 @@ public partial class ConsoleEncoding : RemoteExecutorTestBase
     [ActiveIssue("https://github.com/dotnet/corefx/issues/18220", TargetFrameworkMonikers.UapAot)]
     public void InputEncoding_SetWithInInitialized_ResetsIn()
     {
-        RemoteInvoke(() =>
+        RemoteExecutor.Invoke(() =>
         {
             // Initialize Console.In
             TextReader inReader = Console.In;
@@ -140,7 +140,7 @@ public partial class ConsoleEncoding : RemoteExecutorTestBase
                 Assert.NotSame(inReader, Console.In);
             }
 
-            return SuccessExitCode;
+            return RemoteExecutor.SuccessExitCode;
         }).Dispose();
     }
 
@@ -163,7 +163,7 @@ public partial class ConsoleEncoding : RemoteExecutorTestBase
     [ActiveIssue("https://github.com/dotnet/corefx/issues/18220", TargetFrameworkMonikers.UapAot)]
     public void OutputEncoding_SetWithErrorAndOutputInitialized_ResetsErrorAndOutput()
     {
-        RemoteInvoke(() =>
+        RemoteExecutor.Invoke(() =>
         {
             // Initialize Console.Error
             TextWriter errorWriter = Console.Error;
@@ -182,7 +182,7 @@ public partial class ConsoleEncoding : RemoteExecutorTestBase
             Assert.NotSame(errorWriter, Console.Error);
             Assert.NotSame(outWriter, Console.Out);
 
-            return SuccessExitCode;
+            return RemoteExecutor.SuccessExitCode;
         }).Dispose();
     }
 

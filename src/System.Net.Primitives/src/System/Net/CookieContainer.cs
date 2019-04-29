@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.NetworkInformation;
@@ -123,7 +124,7 @@ namespace System.Net
 
         public CookieContainer(int capacity, int perDomainCapacity, int maxCookieSize) : this(capacity)
         {
-            if (perDomainCapacity != Int32.MaxValue && (perDomainCapacity <= 0 || perDomainCapacity > capacity))
+            if (perDomainCapacity != int.MaxValue && (perDomainCapacity <= 0 || perDomainCapacity > capacity))
             {
                 throw new ArgumentOutOfRangeException(nameof(perDomainCapacity), SR.Format(SR.net_cookie_capacity_range, "PerDomainCapacity", 0, capacity));
             }
@@ -152,7 +153,7 @@ namespace System.Net
             }
             set
             {
-                if (value <= 0 || (value < m_maxCookiesPerDomain && m_maxCookiesPerDomain != Int32.MaxValue))
+                if (value <= 0 || (value < m_maxCookiesPerDomain && m_maxCookiesPerDomain != int.MaxValue))
                 {
                     throw new ArgumentOutOfRangeException(nameof(value), SR.Format(SR.net_cookie_capacity_range, "Capacity", 0, m_maxCookiesPerDomain));
                 }
@@ -203,7 +204,7 @@ namespace System.Net
             }
             set
             {
-                if (value <= 0 || (value > m_maxCookies && value != Int32.MaxValue))
+                if (value <= 0 || (value > m_maxCookies && value != int.MaxValue))
                 {
                     throw new ArgumentOutOfRangeException(nameof(value));
                 }
@@ -278,7 +279,7 @@ namespace System.Net
             {
                 if (throwOnError)
                 {
-                    throw new CookieException(SR.Format(SR.net_cookie_size, cookie.ToString(), m_maxCookieSize));
+                    throw new CookieException(SR.Format(SR.net_cookie_size, cookie, m_maxCookieSize));
                 }
                 return;
             }
@@ -332,11 +333,17 @@ namespace System.Net
                         return; // Cannot age: reject new cookie
                     }
 
-                    // About to change the collection
+                    // About to change the collection.
                     lock (cookies)
                     {
                         m_count += cookies.InternalAdd(cookie, true);
                     }
+                }
+
+                // We don't want to cleanup m_domaintable/m_list too often. Add check to avoid overhead.
+                if (m_domainTable.Count > m_count || pathList.Count > m_maxCookiesPerDomain)
+                {
+                    DomainTableCleanup();
                 }
             }
             catch (OutOfMemoryException)
@@ -505,6 +512,52 @@ namespace System.Net
             return true;
         }
 
+        private void DomainTableCleanup()
+        {
+            var removePathList = new List<object>();
+            var removeDomainList = new List<string>();
+
+            string currentDomain;
+            PathList pathList;
+
+            lock (m_domainTable.SyncRoot)
+            {
+                // Manual use of IDictionaryEnumerator instead of foreach to avoid DictionaryEntry box allocations.
+                IDictionaryEnumerator enumerator = m_domainTable.GetEnumerator();
+                while (enumerator.MoveNext())
+                {
+                    currentDomain = (string)enumerator.Key;
+                    pathList = (PathList)enumerator.Value;
+
+                    lock (pathList.SyncRoot)
+                    {
+                        IDictionaryEnumerator e = pathList.GetEnumerator();
+                        while (e.MoveNext())
+                        {
+                            CookieCollection cc = (CookieCollection)e.Value;
+                            if (cc.Count == 0)
+                            {
+                                removePathList.Add(e.Key);
+                            }
+                        }
+
+                        foreach (var key in removePathList)
+                        {
+                            pathList.Remove(key);
+                        }
+
+                        removePathList.Clear();
+                        if (pathList.Count == 0) removeDomainList.Add(currentDomain);
+                    }
+                }
+
+                foreach (var key in removeDomainList)
+                {
+                    m_domainTable.Remove(key);
+                }
+            }
+        }
+
         // Return number of cookies removed from the collection.
         private int ExpireCollection(CookieCollection cc)
         {
@@ -660,7 +713,7 @@ namespace System.Net
             {
                 for (int i = 0; i < s_headerInfo.Length; ++i)
                 {
-                    if ((String.Compare(headerName, s_headerInfo[i].Name, StringComparison.OrdinalIgnoreCase) == 0))
+                    if ((string.Equals(headerName, s_headerInfo[i].Name, StringComparison.OrdinalIgnoreCase)))
                     {
                         variant = s_headerInfo[i].Variant;
                     }
@@ -686,7 +739,7 @@ namespace System.Net
                     }
 
                     // Parser marks invalid cookies this way
-                    if (String.IsNullOrEmpty(cookie.Name))
+                    if (string.IsNullOrEmpty(cookie.Name))
                     {
                         if (isThrow)
                         {
@@ -841,8 +894,7 @@ namespace System.Net
                     }
                 }
 
-                // Remove unused domain
-                // (This is the only place that does domain removal)
+                // Remove unused domain.
                 if (pathList.Count == 0)
                 {
                     lock (m_domainTable.SyncRoot)
@@ -1029,6 +1081,14 @@ namespace System.Net
             lock (SyncRoot)
             {
                 return m_list.GetEnumerator();
+            }
+        }
+
+        internal void Remove(object key)
+        {
+            lock (SyncRoot)
+            {
+                m_list.Remove(key);
             }
         }
 

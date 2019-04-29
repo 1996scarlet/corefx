@@ -10,6 +10,7 @@ namespace System.Security.Cryptography
     /// <summary>
     /// Specifies the name of a cryptographic hash algorithm.
     /// </summary>
+    /// <remarks>
     /// Asymmetric Algorithms implemented using Microsoft's CNG (Cryptography Next Generation) API
     /// will interpret the underlying string value as a CNG algorithm identifier: 
     ///   * https://msdn.microsoft.com/en-us/library/windows/desktop/aa375534(v=vs.85).aspx
@@ -75,7 +76,7 @@ namespace System.Security.Cryptography
 
         public override string ToString()
         {
-            return _name ?? String.Empty;
+            return _name ?? string.Empty;
         }
 
         public override bool Equals(object obj)

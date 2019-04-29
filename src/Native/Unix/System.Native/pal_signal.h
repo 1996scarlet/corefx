@@ -5,17 +5,14 @@
 #pragma once
 
 #include "pal_compiler.h"
-
-BEGIN_EXTERN_C
-
 #include "pal_types.h"
 
 /**
- * Initializes the signal handling for use by System.Console and System.Process.
+ * Initializes the signal handling, called by InitializeTerminalAndSignalHandling.
  *
  * Returns 1 on success; otherwise returns 0 and sets errno.
  */
-uint32_t InitializeSignalHandling(void);
+int32_t InitializeSignalHandlingCore(void);
 
 /**
  * Hooks up the specified callback for notifications when SIGINT or SIGQUIT is received.
@@ -25,7 +22,7 @@ uint32_t InitializeSignalHandling(void);
  *
  * Should only be called when a callback is not currently registered.
  */
-void SystemNative_RegisterForCtrl(CtrlCallback callback);
+DLLEXPORT void SystemNative_RegisterForCtrl(CtrlCallback callback);
 
 /**
  * Unregisters the previously registered ctrlCCallback.
@@ -37,18 +34,29 @@ void SystemNative_RegisterForCtrl(CtrlCallback callback);
  * previously registered must remain valid until all ctrl handling activity
  * has quiesced.
  */
-void SystemNative_UnregisterForCtrl(void);
+DLLEXPORT void SystemNative_UnregisterForCtrl(void);
 
 typedef void (*SigChldCallback)(int reapAll);
 
 /**
  * Hooks up the specified callback for notifications when SIGCHLD is received.
  *
- * Not thread safe.  Caller must provide its owns synchronization to ensure RegisterForSigChld
- * is not called concurrently with itself.
- *
  * Should only be called when a callback is not currently registered.
  */
-uint32_t SystemNative_RegisterForSigChld(SigChldCallback callback);
+DLLEXPORT void SystemNative_RegisterForSigChld(SigChldCallback callback);
 
-END_EXTERN_C
+/**
+ * Remove our handler and reissue the signal to be picked up by the previously registered handler.
+ *
+ * In the most common case, this will be the default handler, causing the process to be torn down.
+ * It could also be a custom handler registered by other code before us.
+ */
+DLLEXPORT void SystemNative_RestoreAndHandleCtrl(CtrlCode ctrlCode);
+
+typedef void (*TerminalInvalidationCallback)(void);
+
+/**
+ * Hooks up the specified callback for notifications when SIGCHLD, SIGCONT, SIGWINCH are received.
+  *
+ */
+DLLEXPORT void SystemNative_SetTerminalInvalidationHandler(TerminalInvalidationCallback callback);

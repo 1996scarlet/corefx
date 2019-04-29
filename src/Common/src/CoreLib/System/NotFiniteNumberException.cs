@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+#nullable enable
 using System.Runtime.Serialization;
 
 namespace System
@@ -26,27 +27,27 @@ namespace System
             HResult = HResults.COR_E_NOTFINITENUMBER;
         }
 
-        public NotFiniteNumberException(string message)
+        public NotFiniteNumberException(string? message)
             : base(message)
         {
             _offendingNumber = 0;
             HResult = HResults.COR_E_NOTFINITENUMBER;
         }
 
-        public NotFiniteNumberException(string message, double offendingNumber)
+        public NotFiniteNumberException(string? message, double offendingNumber)
             : base(message)
         {
             _offendingNumber = offendingNumber;
             HResult = HResults.COR_E_NOTFINITENUMBER;
         }
 
-        public NotFiniteNumberException(string message, Exception innerException)
+        public NotFiniteNumberException(string? message, Exception? innerException)
             : base(message, innerException)
         {
             HResult = HResults.COR_E_NOTFINITENUMBER;
         }
 
-        public NotFiniteNumberException(string message, double offendingNumber, Exception innerException)
+        public NotFiniteNumberException(string? message, double offendingNumber, Exception? innerException)
             : base(message, innerException)
         {
             _offendingNumber = offendingNumber;
@@ -55,13 +56,13 @@ namespace System
 
         protected NotFiniteNumberException(SerializationInfo info, StreamingContext context) : base(info, context)
         {
-            _offendingNumber = info.GetInt32("OffendingNumber");
+            _offendingNumber = info.GetDouble("OffendingNumber"); // Do not rename (binary serialization)
         }
 
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("OffendingNumber", _offendingNumber, typeof(int));
+            info.AddValue("OffendingNumber", _offendingNumber, typeof(double)); // Do not rename (binary serialization)
         }
 
         public double OffendingNumber

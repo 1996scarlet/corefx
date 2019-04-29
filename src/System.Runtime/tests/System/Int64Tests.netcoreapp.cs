@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System.Collections.Generic;
 using System.Globalization;
 using Xunit;
 
@@ -9,13 +10,37 @@ namespace System.Tests
 {
     public partial class Int64Tests
     {
-        [Theory]
-        [MemberData(nameof(Parse_Valid_TestData))]
-        public static void Parse_Span_Valid(string value, NumberStyles style, IFormatProvider provider, long expected)
+        public static IEnumerable<object[]> Parse_ValidWithOffsetCount_TestData()
         {
-            Assert.Equal(expected, long.Parse(value.AsSpan(), style, provider));
+            foreach (object[] inputs in Parse_Valid_TestData())
+            {
+                yield return new object[] { inputs[0], 0, ((string)inputs[0]).Length, inputs[1], inputs[2], inputs[3] };
+            }
 
-            Assert.True(long.TryParse(value.AsSpan(), style, provider, out long result));
+            yield return new object[] { "-9223372036854775808", 0, 19, NumberStyles.Integer, null, -922337203685477580 };
+            yield return new object[] { "09223372036854775807", 1, 19, NumberStyles.Integer, null, 9223372036854775807 };
+            yield return new object[] { "9223372036854775807", 0, 1, NumberStyles.Integer, null, 9 };
+            yield return new object[] { "ABC", 0, 2, NumberStyles.HexNumber, null, (long)0xAB };
+            yield return new object[] { "(123)", 1, 3, NumberStyles.AllowParentheses, null, (long)123 };
+            yield return new object[] { "$1,000", 0, 2, NumberStyles.Currency, new NumberFormatInfo() { CurrencySymbol = "$" }, (long)1 };
+        }
+
+        [Theory]
+        [MemberData(nameof(Parse_ValidWithOffsetCount_TestData))]
+        public static void Parse_Span_Valid(string value, int offset, int count, NumberStyles style, IFormatProvider provider, long expected)
+        {
+            long result;
+
+            // Default style and provider
+            if (style == NumberStyles.Integer && provider == null)
+            {
+                Assert.True(long.TryParse(value.AsSpan(offset, count), out result));
+                Assert.Equal(expected, result);
+            }
+
+            Assert.Equal(expected, long.Parse(value.AsSpan(offset, count), style, provider));
+
+            Assert.True(long.TryParse(value.AsSpan(offset, count), style, provider, out result));
             Assert.Equal(expected, result);
         }
 
@@ -25,9 +50,18 @@ namespace System.Tests
         {
             if (value != null)
             {
+                long result;
+
+                // Default style and provider
+                if (style == NumberStyles.Integer && provider == null)
+                {
+                    Assert.False(long.TryParse(value.AsSpan(), out result));
+                    Assert.Equal(0, result);
+                }
+
                 Assert.Throws(exceptionType, () => long.Parse(value.AsSpan(), style, provider));
 
-                Assert.False(long.TryParse(value.AsSpan(), style, provider, out long result));
+                Assert.False(long.TryParse(value.AsSpan(), style, provider, out result));
                 Assert.Equal(0, result);
             }
         }

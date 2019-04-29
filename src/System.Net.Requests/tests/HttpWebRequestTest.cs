@@ -4,7 +4,9 @@
 
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.Cache;
 using System.Net.Http;
 using System.Net.Test.Common;
@@ -12,20 +14,122 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace System.Net.Tests
 {
-    public partial class HttpWebRequestTest : RemoteExecutorTestBase
+    using Configuration = System.Net.Test.Common.Configuration;
+
+    public partial class HttpWebRequestTest
     {
         private const string RequestBody = "This is data to POST.";
         private readonly byte[] _requestBodyBytes = Encoding.UTF8.GetBytes(RequestBody);
         private readonly NetworkCredential _explicitCredential = new NetworkCredential("user", "password", "domain");
         private readonly ITestOutputHelper _output;
 
-        public static readonly object[][] EchoServers = System.Net.Test.Common.Configuration.Http.EchoServers;
+        public static readonly object[][] EchoServers = Configuration.Http.EchoServers;
+
+        public static IEnumerable<object[]> Dates_ReadValue_Data()
+        {
+            var zero_formats = new[]
+            {
+                // RFC1123
+                "R",
+                // RFC1123 - UTC
+                "ddd, dd MMM yyyy HH:mm:ss 'UTC'",
+                // RFC850
+                "dddd, dd-MMM-yy HH:mm:ss 'GMT'",
+                // RFC850 - UTC
+                "dddd, dd-MMM-yy HH:mm:ss 'UTC'",
+                // ANSI
+                "ddd MMM d HH:mm:ss yyyy",
+            };
+
+            var offset_formats = new[]
+            {
+                // RFC1123 - Offset
+                "ddd, dd MMM yyyy HH:mm:ss zzz",
+                // RFC850 - Offset
+                "dddd, dd-MMM-yy HH:mm:ss zzz",
+            };
+
+            var dates = new[]
+            {
+                new DateTimeOffset(2018, 1, 1, 12, 1, 14, TimeSpan.Zero),
+                new DateTimeOffset(2018, 1, 3, 15, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2015, 5, 6, 20, 45, 38, TimeSpan.Zero),
+            };
+
+            foreach (var date in dates)
+            {
+                var expected = date.LocalDateTime;
+
+                foreach (var format in zero_formats.Concat(offset_formats))
+                {
+                    var formatted = date.ToString(format, CultureInfo.InvariantCulture);
+                    yield return new object[] { formatted, expected };
+                }
+            }
+
+            foreach (var format in offset_formats)
+            {
+                foreach (var date in dates.SelectMany(d => new[] { d.ToOffset(TimeSpan.FromHours(5)), d.ToOffset(TimeSpan.FromHours(-5)) }))
+                {
+                    var formatted = date.ToString(format, CultureInfo.InvariantCulture);
+                    var expected = date.LocalDateTime;
+                    yield return new object[] { formatted, expected };
+                    yield return new object[] { formatted.ToLowerInvariant(), expected };
+                }
+            }
+        }
+
+        public static IEnumerable<object[]> Dates_Invalid_Data()
+        {
+            yield return new object[] { "not a valid date here" };
+            yield return new object[] { "Sun, 32 Nov 2018 16:33:01 GMT" };
+            yield return new object[] { "Sun, 25 Car 2018 16:33:01 UTC" };
+            yield return new object[] { "Sun, 25 Nov 1234567890 33:77:80 GMT" };
+            yield return new object[] { "Sun, 25 Nov 2018 55:33:01+05:00" };
+            yield return new object[] { "Sunday, 25-Nov-18 16:77:01 GMT" };
+            yield return new object[] { "Sunday, 25-Nov-18 16:33:65 UTC" };
+            yield return new object[] { "Broken, 25-Nov-18 21:33:01+05:00" };
+            yield return new object[] { "Always Nov 25 21:33:01 2018" };
+
+            // Sat/Saturday is invalid, because 2018/3/25 is Sun/Sunday...
+            yield return new object[] { "Sat, 25 Mar 2018 16:33:01 GMT" };
+            yield return new object[] { "Sat, 25 Mar 2018 16:33:01 UTC" };
+            yield return new object[] { "Sat, 25 Mar 2018 21:33:01+05:00" };
+            yield return new object[] { "Saturday, 25-Mar-18 16:33:01 GMT" };
+            yield return new object[] { "Saturday, 25-Mar-18 16:33:01 UTC" };
+            yield return new object[] { "Saturday, 25-Mar-18 21:33:01+05:00" };
+            yield return new object[] { "Sat Mar 25 21:33:01 2018" };
+            // Invalid day-of-week values
+            yield return new object[] { "Sue, 25 Nov 2018 16:33:01 GMT" };
+            yield return new object[] { "Sue, 25 Nov 2018 16:33:01 UTC" };
+            yield return new object[] { "Sue, 25 Nov 2018 21:33:01+05:00" };
+            yield return new object[] { "Surprise, 25-Nov-18 16:33:01 GMT" };
+            yield return new object[] { "Surprise, 25-Nov-18 16:33:01 UTC" };
+            yield return new object[] { "Surprise, 25-Nov-18 21:33:01+05:00" };
+            yield return new object[] { "Sue Nov 25 21:33:01 2018" };
+            // Invalid month values
+            yield return new object[] { "Sun, 25 Not 2018 16:33:01 GMT" };
+            yield return new object[] { "Sun, 25 Not 2018 16:33:01 UTC" };
+            yield return new object[] { "Sun, 25 Not 2018 21:33:01+05:00" };
+            yield return new object[] { "Sunday, 25-Not-18 16:33:01 GMT" };
+            yield return new object[] { "Sunday, 25-Not-18 16:33:01 UTC" };
+            yield return new object[] { "Sunday, 25-Not-18 21:33:01+05:00" };
+            yield return new object[] { "Sun Not 25 21:33:01 2018" };
+            // Strange separators
+            yield return new object[] { "Sun? 25 Nov 2018 16:33:01 GMT" };
+            yield return new object[] { "Sun, 25*Nov 2018 16:33:01 UTC" };
+            yield return new object[] { "Sun, 25 Nov{2018 21:33:01+05:00" };
+            yield return new object[] { "Sunday, 25-Nov-18]16:33:01 GMT" };
+            yield return new object[] { "Sunday, 25-Nov-18 16/33:01 UTC" };
+            yield return new object[] { "Sunday, 25-Nov-18 21:33|01+05:00" };
+            yield return new object[] { "Sun=Not 25 21:33:01 2018" };
+        }
 
         public HttpWebRequestTest(ITestOutputHelper output)
         {
@@ -204,7 +308,7 @@ namespace System.Net.Tests
                     Assert.Contains($"Host: {host}", headers);
                 });
 
-                using (var response = (HttpWebResponse) await getResponse)
+                using (var response = (HttpWebResponse)await getResponse)
                 {
                     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 }
@@ -455,32 +559,35 @@ namespace System.Net.Tests
         [InlineData(null)]
         [InlineData(false)]
         [InlineData(true)]
-        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework, "dotnet/corefx #19225")]
-        public void KeepAlive_CorrectConnectionHeaderSent(bool? keepAlive)
+        public async Task KeepAlive_CorrectConnectionHeaderSent(bool? keepAlive)
         {
-            HttpWebRequest request = WebRequest.CreateHttp(Test.Common.Configuration.Http.RemoteEchoServer);
-
-            if (keepAlive.HasValue)
+            await LoopbackServer.CreateServerAsync(async (server, url) =>
             {
-                request.KeepAlive = keepAlive.Value;
-            }
+                HttpWebRequest request = WebRequest.CreateHttp(url);
+                request.Proxy = null; // Don't use a proxy since it might interfere with the Connection: headers.
+                if (keepAlive.HasValue)
+                {
+                    request.KeepAlive = keepAlive.Value;
+                }
 
-            using (var response = (HttpWebResponse)request.GetResponse())
-            using (var body = new StreamReader(response.GetResponseStream()))
-            {
-                string content = body.ReadToEnd();
+                Task<WebResponse> getResponseTask = request.GetResponseAsync();
+                Task<List<string>> serverTask = server.AcceptConnectionSendResponseAndCloseAsync();
+
+                await TaskTimeoutExtensions.WhenAllOrAnyFailed(new Task[] { getResponseTask, serverTask });
+
+                List<string> requestLines = await serverTask;
                 if (!keepAlive.HasValue || keepAlive.Value)
                 {
-                    // Validate that the request doesn't contain Connection: "close", but we can't validate
-                    // that it does contain Connection: "keep-alive", as that's optional as of HTTP 1.1.
-                    Assert.DoesNotContain("\"Connection\": \"close\"", content, StringComparison.OrdinalIgnoreCase);
+                    // Validate that the request doesn't contain "Connection: close", but we can't validate
+                    // that it does contain "Connection: Keep-Alive", as that's optional as of HTTP 1.1.
+                    Assert.DoesNotContain("Connection: close", requestLines, StringComparer.OrdinalIgnoreCase);
                 }
                 else
                 {
-                    Assert.Contains("\"Connection\": \"close\"", content, StringComparison.OrdinalIgnoreCase);
-                    Assert.DoesNotContain("\"Keep-Alive\"", content, StringComparison.OrdinalIgnoreCase);
+                    Assert.Contains("Connection: close", requestLines, StringComparer.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("Keep-Alive", requestLines, StringComparer.OrdinalIgnoreCase);
                 }
-            }
+            });
         }
 
         [Theory, MemberData(nameof(EchoServers))]
@@ -584,7 +691,7 @@ namespace System.Net.Tests
         [Fact]
         public void DefaultMaximumResponseHeadersLength_SetAndGetLength_ValuesMatch()
         {
-            RemoteInvoke(() =>
+            RemoteExecutor.Invoke(() =>
             {
                 int defaultMaximumResponseHeadersLength = HttpWebRequest.DefaultMaximumResponseHeadersLength;
                 const int NewDefaultMaximumResponseHeadersLength = 255;
@@ -599,14 +706,14 @@ namespace System.Net.Tests
                     HttpWebRequest.DefaultMaximumResponseHeadersLength = defaultMaximumResponseHeadersLength;
                 }
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }).Dispose();
         }
 
         [Fact]
         public void DefaultMaximumErrorResponseLength_SetAndGetLength_ValuesMatch()
         {
-            RemoteInvoke(() =>
+            RemoteExecutor.Invoke(() =>
             {
                 int defaultMaximumErrorsResponseLength = HttpWebRequest.DefaultMaximumErrorResponseLength;
                 const int NewDefaultMaximumErrorsResponseLength = 255;
@@ -621,14 +728,14 @@ namespace System.Net.Tests
                     HttpWebRequest.DefaultMaximumErrorResponseLength = defaultMaximumErrorsResponseLength;
                 }
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }).Dispose();
         }
 
         [Fact]
         public void DefaultCachePolicy_SetAndGetPolicyReload_ValuesMatch()
         {
-            RemoteInvoke(() =>
+            RemoteExecutor.Invoke(() =>
             {
                 RequestCachePolicy requestCachePolicy = HttpWebRequest.DefaultCachePolicy;
 
@@ -643,7 +750,7 @@ namespace System.Net.Tests
                     HttpWebRequest.DefaultCachePolicy = requestCachePolicy;
                 }
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }).Dispose();
         }
 
@@ -661,6 +768,38 @@ namespace System.Net.Tests
             Assert.Equal(ifModifiedSince, request.IfModifiedSince);
         }
 
+        [Theory]
+        [MemberData(nameof(Dates_ReadValue_Data))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework,
+            "Net Framework currently retains the custom date parsing that retains some bugs (mostly related to offset), and also prevents setting the raw header value")]
+        public void IfModifiedSince_ReadValue(string raw, DateTime expected)
+        {
+            HttpWebRequest request = WebRequest.CreateHttp("http://localhost");
+            request.Headers.Set(HttpRequestHeader.IfModifiedSince, raw);
+
+            Assert.Equal(expected, request.IfModifiedSince);
+        }
+
+        [Theory]
+        [MemberData(nameof(Dates_Invalid_Data))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework,
+            "Net Framework currently retains the custom date parsing that accepts a wider range of values, and also prevents setting the raw header value")]
+        public void IfModifiedSince_InvalidValue(string invalid)
+        {
+            HttpWebRequest request = WebRequest.CreateHttp("http://localhost");
+            request.Headers.Set(HttpRequestHeader.IfModifiedSince, invalid);
+
+            Assert.Throws<ProtocolViolationException>(() => request.IfModifiedSince);
+        }
+
+        [Fact]
+        public void IfModifiedSince_NotPresent()
+        {
+            HttpWebRequest request = WebRequest.CreateHttp("http://localhost");
+
+            Assert.Equal(DateTime.MinValue, request.IfModifiedSince);
+        }
+
         [Theory, MemberData(nameof(EchoServers))]
         public void Date_SetMinDateAfterValidDate_ValuesMatch(Uri remoteServer)
         {
@@ -673,6 +812,38 @@ namespace System.Net.Tests
             DateTime date = DateTime.MinValue;
             request.Date = date;
             Assert.Equal(date, request.Date);
+        }
+
+        [Theory]
+        [MemberData(nameof(Dates_ReadValue_Data))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework,
+            "Net Framework currently retains the custom date parsing that retains some bugs (mostly related to offset), and also prevents setting the raw header value")]
+        public void Date_ReadValue(string raw, DateTime expected)
+        {
+            HttpWebRequest request = WebRequest.CreateHttp("http://localhost");
+            request.Headers.Set(HttpRequestHeader.Date, raw);
+
+            Assert.Equal(expected, request.Date);
+        }
+
+        [Theory]
+        [MemberData(nameof(Dates_Invalid_Data))]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.NetFramework,
+            "Net Framework currently retains the custom date parsing that accepts a wider range of values, and also prevents setting the raw header value")]
+        public void Date_InvalidValue(string invalid)
+        {
+            HttpWebRequest request = WebRequest.CreateHttp("http://localhost");
+            request.Headers.Set(HttpRequestHeader.Date, invalid);
+
+            Assert.Throws<ProtocolViolationException>(() => request.Date);
+        }
+
+        [Fact]
+        public void Date_NotPresent()
+        {
+            HttpWebRequest request = WebRequest.CreateHttp("http://localhost");
+
+            Assert.Equal(DateTime.MinValue, request.Date);
         }
 
         [Theory, MemberData(nameof(EchoServers))]
@@ -770,7 +941,7 @@ namespace System.Net.Tests
                 Task<WebResponse> getResponse = request.GetResponseAsync();
                 Task<List<string>> serverTask = server.AcceptConnectionSendResponseAndCloseAsync();
 
-                using (HttpWebResponse response = (HttpWebResponse) await getResponse)
+                using (HttpWebResponse response = (HttpWebResponse)await getResponse)
                 {
                     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 }
@@ -1012,7 +1183,7 @@ namespace System.Net.Tests
                 using (var sr = new StreamReader(myStream))
                 {
                     string strContent = sr.ReadToEnd();
-                    Assert.True(strContent.Contains("\"Host\": \"" + System.Net.Test.Common.Configuration.Http.Host + "\""));
+                    Assert.True(strContent.Contains("\"Host\": \"" + remoteServer.Host + "\""));
                 }
             }
         }
@@ -1057,8 +1228,8 @@ namespace System.Net.Tests
                 Assert.True(strContent.Contains(RequestBody));
             }
         }
-        
-        [Theory] 
+
+        [Theory]
         [MemberData(nameof(EchoServers))]
         public async Task GetResponseAsync_UseDefaultCredentials_ExpectSuccess(Uri remoteServer)
         {
@@ -1078,17 +1249,16 @@ namespace System.Net.Tests
             Assert.Equal(WebExceptionStatus.NameResolutionFailure, ex.Status);
         }
 
-        public static object[][] StatusCodeServers = {
-            new object[] { System.Net.Test.Common.Configuration.Http.StatusCodeUri(false, 404) },
-            new object[] { System.Net.Test.Common.Configuration.Http.StatusCodeUri(true, 404) },
-        };
-
-        [Theory, MemberData(nameof(StatusCodeServers))]
-        public async Task GetResponseAsync_ResourceNotFound_ThrowsWebException(Uri remoteServer)
+        [Fact]
+        public async Task GetResponseAsync_ResourceNotFound_ThrowsWebException()
         {
-            HttpWebRequest request = WebRequest.CreateHttp(remoteServer);
-            WebException ex = await Assert.ThrowsAsync<WebException>(() => request.GetResponseAsync());
-            Assert.Equal(WebExceptionStatus.ProtocolError, ex.Status);
+            await LoopbackServer.CreateClientAndServerAsync(async uri =>
+            {
+                HttpWebRequest request = WebRequest.CreateHttp(uri);
+                WebException ex = await Assert.ThrowsAsync<WebException>(() => request.GetResponseAsync());
+                Assert.Equal(WebExceptionStatus.ProtocolError, ex.Status);
+            }, server => server.AcceptConnectionSendCustomResponseAndCloseAsync(
+                $"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"));
         }
 
         [Theory, MemberData(nameof(EchoServers))]
@@ -1144,6 +1314,43 @@ namespace System.Net.Tests
         {
             HttpWebRequest request = WebRequest.CreateHttp(remoteServer);
             Assert.NotNull(request.Proxy);
+        }
+
+        [OuterLoop("Uses external server")]
+        [PlatformSpecific(TestPlatforms.AnyUnix)] // The default proxy is resolved via WinINet on Windows.
+        [Fact]
+        public async Task ProxySetViaEnvironmentVariable_DefaultProxyCredentialsUsed()
+        {
+            var cred = new NetworkCredential(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N"));
+            LoopbackServer.Options options =
+                new LoopbackServer.Options { IsProxy = true, Username = cred.UserName, Password = cred.Password };
+
+            await LoopbackServer.CreateServerAsync(async (proxyServer, proxyUri) =>
+            {
+                // HttpWebRequest/HttpClient will read a default proxy from the http_proxy environment variable. Ensure
+                // that when it does our default proxy credentials are used. To avoid messing up anything else in this
+                // process we run the test in another process.
+                var psi = new ProcessStartInfo();
+                Task<List<string>> proxyTask = null;
+
+                proxyTask = proxyServer.AcceptConnectionPerformAuthenticationAndCloseAsync("Proxy-Authenticate: Basic realm=\"NetCore\"\r\n");
+                psi.Environment.Add("http_proxy", $"http://{proxyUri.Host}:{proxyUri.Port}");
+
+                RemoteExecutor.Invoke(async (user, pw) =>
+                {
+                    WebRequest.DefaultWebProxy.Credentials = new NetworkCredential(user, pw);
+                    HttpWebRequest request = HttpWebRequest.CreateHttp(Configuration.Http.RemoteEchoServer);
+
+                    using (var response = (HttpWebResponse) await request.GetResponseAsync())
+                    {
+                        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                    }
+
+                    return RemoteExecutor.SuccessExitCode;
+                }, cred.UserName, cred.Password, new RemoteInvokeOptions { StartInfo = psi }).Dispose();
+
+                await proxyTask;
+            }, options);
         }
 
         [Theory, MemberData(nameof(EchoServers))]
@@ -1386,11 +1593,11 @@ namespace System.Net.Tests
                 BinaryFormatter formatter = new BinaryFormatter();
                 var hwr = HttpWebRequest.CreateHttp("http://localhost");
 
-                // .NET Framework throws 
+                // .NET Framework throws
                 // System.Runtime.Serialization.SerializationException:
                 //  Type 'System.Net.WebRequest+WebProxyWrapper' in Assembly 'System, Version=4.0.0.
                 //        0, Culture=neutral, PublicKeyToken=b77a5c561934e089' is not marked as serializable.
-                // While .NET Core throws 
+                // While .NET Core throws
                 // System.Runtime.Serialization.SerializationException:
                 //  Type 'System.Net.HttpWebRequest' in Assembly 'System.Net.Requests, Version=4.0.0.
                 //        0, Culture=neutral, PublicKeyToken=b77a5c561934e089' is not marked as serializable.

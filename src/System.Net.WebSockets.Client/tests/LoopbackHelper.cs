@@ -15,7 +15,7 @@ namespace System.Net.WebSockets.Client.Tests
         {
             string serverResponse = null;
             string currentRequestLine;
-            while (!string.IsNullOrEmpty(currentRequestLine = await connection.Reader.ReadLineAsync().ConfigureAwait(false)))
+            while (!string.IsNullOrEmpty(currentRequestLine = await connection.ReadLineAsync().ConfigureAwait(false)))
             {
                 string[] tokens = currentRequestLine.Split(new char[] { ':' }, 2);
                 if (tokens.Length == 2)
@@ -27,6 +27,7 @@ namespace System.Net.WebSockets.Client.Tests
                         string responseSecurityAcceptValue = ComputeWebSocketHandshakeSecurityAcceptValue(headerValue);
                         serverResponse =
                             "HTTP/1.1 101 Switching Protocols\r\n" +
+                            "Content-Length: 0\r\n" +
                             "Upgrade: websocket\r\n" +
                             "Connection: Upgrade\r\n" +
                             "Sec-WebSocket-Accept: " + responseSecurityAcceptValue + "\r\n\r\n";

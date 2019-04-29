@@ -34,13 +34,17 @@ namespace System.Security.Cryptography
             else
             {
                 throw new PlatformNotSupportedException(
-                    string.Format(SR.Cryptography_CurveNotSupported, parameters.Curve.CurveType.ToString()));
+                    SR.Format(SR.Cryptography_CurveNotSupported, parameters.Curve.CurveType.ToString()));
             }
 
             if (key == null || key.IsInvalid)
             {
                 throw Interop.Crypto.CreateOpenSslCryptographicException();
             }
+
+            // The Import* methods above may have polluted the error queue even if in the end they succeeded.
+            // Clean up the error queue.
+            Interop.Crypto.ErrClearError();
 
             FreeKey();
             _key = new Lazy<SafeEcKeyHandle>(key);
@@ -180,7 +184,7 @@ namespace System.Security.Cryptography
             SafeEcKeyHandle key = Interop.Crypto.EcKeyCreateByOid(oid);
 
             if (key == null || key.IsInvalid)
-                throw new PlatformNotSupportedException(string.Format(SR.Cryptography_CurveNotSupported, oid));
+                throw new PlatformNotSupportedException(SR.Format(SR.Cryptography_CurveNotSupported, oid));
 
             if (!Interop.Crypto.EcKeyGenerateKey(key))
                 throw Interop.Crypto.CreateOpenSslCryptographicException();

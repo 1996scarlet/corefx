@@ -9,6 +9,7 @@
 **
 =============================================================================*/
 
+#nullable enable
 using System.Runtime.Serialization;
 
 namespace System
@@ -23,13 +24,13 @@ namespace System
             HResult = HResults.COR_E_FIELDACCESS;
         }
 
-        public FieldAccessException(String message)
+        public FieldAccessException(string? message)
             : base(message)
         {
             HResult = HResults.COR_E_FIELDACCESS;
         }
 
-        public FieldAccessException(String message, Exception inner)
+        public FieldAccessException(string? message, Exception? inner)
             : base(message, inner)
         {
             HResult = HResults.COR_E_FIELDACCESS;

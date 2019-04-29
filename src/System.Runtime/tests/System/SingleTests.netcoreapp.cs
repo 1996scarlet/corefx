@@ -5,6 +5,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using Microsoft.DotNet.RemoteExecutor;
 using Xunit;
 
 namespace System.Tests
@@ -87,9 +88,27 @@ namespace System.Tests
             Assert.Equal(expected, float.IsSubnormal(d));
         }
 
+        public static IEnumerable<object[]> Parse_ValidWithOffsetCount_TestData()
+        {
+            foreach (object[] inputs in Parse_Valid_TestData())
+            {
+                yield return new object[] { inputs[0], 0, ((string)inputs[0]).Length, inputs[1], inputs[2], inputs[3] };
+            }
+
+            const NumberStyles DefaultStyle = NumberStyles.Float | NumberStyles.AllowThousands;
+
+            yield return new object[] { "-123", 1, 3, DefaultStyle, null, (float)123 };
+            yield return new object[] { "-123", 0, 3, DefaultStyle, null, (float)-12 };
+            yield return new object[] { "1E23", 0, 3, DefaultStyle, null, (float)1E2 };
+            yield return new object[] { "123", 0, 2, NumberStyles.Float, new NumberFormatInfo(), (float)12 };
+            yield return new object[] { "$1,000", 1, 3, NumberStyles.Currency, new NumberFormatInfo() { CurrencySymbol = "$", CurrencyGroupSeparator = "," }, (float)10 };
+            yield return new object[] { "(123)", 1, 3, NumberStyles.AllowParentheses, new NumberFormatInfo() { NumberDecimalSeparator = "." }, (float)123 };
+            yield return new object[] { "-Infinity", 1, 8, NumberStyles.Any, NumberFormatInfo.InvariantInfo, float.PositiveInfinity };
+        }
+
         [Theory]
-        [MemberData(nameof(Parse_Valid_TestData))]
-        public static void Parse_Span_Valid(string value, NumberStyles style, IFormatProvider provider, float expected)
+        [MemberData(nameof(Parse_ValidWithOffsetCount_TestData))]
+        public static void Parse_Span_Valid(string value, int offset, int count, NumberStyles style, IFormatProvider provider, float expected)
         {
             bool isDefaultProvider = provider == null || provider == NumberFormatInfo.CurrentInfo;
             float result;
@@ -98,18 +117,18 @@ namespace System.Tests
                 // Use Parse(string) or Parse(string, IFormatProvider)
                 if (isDefaultProvider)
                 {
-                    Assert.True(float.TryParse(value.AsSpan(), out result));
+                    Assert.True(float.TryParse(value.AsSpan(offset, count), out result));
                     Assert.Equal(expected, result);
 
-                    Assert.Equal(expected, float.Parse(value.AsSpan()));
+                    Assert.Equal(expected, float.Parse(value.AsSpan(offset, count)));
                 }
 
-                Assert.Equal(expected, float.Parse(value.AsSpan(), provider: provider));
+                Assert.Equal(expected, float.Parse(value.AsSpan(offset, count), provider: provider));
             }
 
-            Assert.Equal(expected, float.Parse(value.AsSpan(), style, provider));
+            Assert.Equal(expected, float.Parse(value.AsSpan(offset, count), style, provider));
 
-            Assert.True(float.TryParse(value.AsSpan(), style, provider, out result));
+            Assert.True(float.TryParse(value.AsSpan(offset, count), style, provider, out result));
             Assert.Equal(expected, result);
         }
 
@@ -129,7 +148,7 @@ namespace System.Tests
         [Fact]
         public static void TryFormat()
         {
-            RemoteInvoke(() =>
+            RemoteExecutor.Invoke(() =>
             {
                 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
@@ -171,8 +190,43 @@ namespace System.Tests
                     }
                 }
 
-                return SuccessExitCode;
+                return RemoteExecutor.SuccessExitCode;
             }).Dispose();
+        }
+
+        public static IEnumerable<object[]> ToStringRoundtrip_TestData()
+        {
+            yield return new object[] { float.NegativeInfinity };
+            yield return new object[] { float.MinValue };
+            yield return new object[] { -MathF.PI };
+            yield return new object[] { -MathF.E };
+            yield return new object[] { -float.Epsilon };
+            yield return new object[] { -0.845512408f };
+            yield return new object[] { -0.0f };
+            yield return new object[] { float.NaN };
+            yield return new object[] { 0.0f };
+            yield return new object[] { 0.845512408f };
+            yield return new object[] { float.Epsilon };
+            yield return new object[] { MathF.E };
+            yield return new object[] { MathF.PI };
+            yield return new object[] { float.MaxValue };
+            yield return new object[] { float.PositiveInfinity };
+        }
+
+        [Theory]
+        [MemberData(nameof(ToStringRoundtrip_TestData))]
+        public static void ToStringRoundtrip(float value)
+        {
+            float result = float.Parse(value.ToString());
+            Assert.Equal(BitConverter.SingleToInt32Bits(value), BitConverter.SingleToInt32Bits(result));
+        }
+
+        [Theory]
+        [MemberData(nameof(ToStringRoundtrip_TestData))]
+        public static void ToStringRoundtrip_R(float value)
+        {
+            float result = float.Parse(value.ToString("R"));
+            Assert.Equal(BitConverter.SingleToInt32Bits(value), BitConverter.SingleToInt32Bits(result));
         }
     }
 }

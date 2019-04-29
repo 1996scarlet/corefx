@@ -243,46 +243,35 @@ namespace System.Net
             return SocketError.Success;
         }
 
-        public static string TryGetNameInfo(IPAddress addr, out SocketError errorCode, out int nativeErrorCode)
+        public static unsafe string TryGetNameInfo(IPAddress addr, out SocketError errorCode, out int nativeErrorCode)
         {
-            //
-            // Use SocketException here to show operation not supported
-            // if, by some nefarious means, this method is called on an
-            // unsupported platform.
-            //
-            SocketAddress address = (new IPEndPoint(addr, 0)).Serialize();
-            StringBuilder hostname = new StringBuilder(1025); // NI_MAXHOST
-
-            int flags = (int)Interop.Winsock.NameInfoFlags.NI_NAMEREQD;
-
-            nativeErrorCode = 0;
-
-            // TODO #2891: Remove the copying step to improve performance. This requires a change in the contracts.
-            byte[] addressBuffer = new byte[address.Size];
+            SocketAddress address = new IPEndPoint(addr, 0).Serialize();
+            Span<byte> addressBuffer = address.Size <= 64 ? stackalloc byte[64] : new byte[address.Size];
             for (int i = 0; i < address.Size; i++)
             {
                 addressBuffer[i] = address[i];
             }
 
-            errorCode =
-                Interop.Winsock.GetNameInfoW(
-                    addressBuffer,
+            const int NI_MAXHOST = 1025;
+            char* hostname = stackalloc char[NI_MAXHOST];
+
+            nativeErrorCode = 0;
+            fixed (byte* addressBufferPtr = addressBuffer)
+            {
+                errorCode = Interop.Winsock.GetNameInfoW(
+                    addressBufferPtr,
                     address.Size,
                     hostname,
-                    hostname.Capacity,
+                    NI_MAXHOST,
                     null, // We don't want a service name
                     0, // so no need for buffer or length
-                    flags);
-
-            if (errorCode != SocketError.Success)
-            {
-                return null;
+                    (int)Interop.Winsock.NameInfoFlags.NI_NAMEREQD);
             }
 
-            return hostname.ToString();
+            return errorCode == SocketError.Success ? new string(hostname) : null;
         }
 
-        public static string GetHostName()
+        public static unsafe string GetHostName()
         {
             //
             // note that we could cache the result ourselves since you
@@ -291,20 +280,12 @@ namespace System.Net
             // react to that change.
             //
 
-            StringBuilder sb = new StringBuilder(HostNameBufferLength);
-            SocketError errorCode =
-                Interop.Winsock.gethostname(
-                    sb,
-                    HostNameBufferLength);
-
-            //
-            // if the call failed throw a SocketException()
-            //
-            if (errorCode != SocketError.Success)
+            byte* buffer = stackalloc byte[HostNameBufferLength];
+            if (Interop.Winsock.gethostname(buffer, HostNameBufferLength) != SocketError.Success)
             {
                 throw new SocketException();
             }
-            return sb.ToString();
+            return new string((sbyte*)buffer);
         }
 
         public static void EnsureSocketsAreInitialized()
@@ -315,12 +296,7 @@ namespace System.Net
                 {
                     if (!s_initialized)
                     {
-                        Interop.Winsock.WSAData wsaData = new Interop.Winsock.WSAData();
-
-                        SocketError errorCode =
-                            Interop.Winsock.WSAStartup(
-                                (short)0x0202, // we need 2.2
-                                out wsaData);
+                        SocketError errorCode = Interop.Winsock.WSAStartup();
 
                         if (errorCode != SocketError.Success)
                         {
@@ -494,8 +470,6 @@ namespace System.Net
         [StructLayout(LayoutKind.Sequential)]
         private unsafe struct GetAddrInfoExContext
         {
-            private static readonly int Size = sizeof(GetAddrInfoExContext);
-
             public NativeOverlapped Overlapped;
             public AddressInfoEx* Result;
             public IntPtr CancelHandle;
@@ -503,7 +477,7 @@ namespace System.Net
 
             public static GetAddrInfoExContext* AllocateContext()
             {
-                var context = (GetAddrInfoExContext*)Marshal.AllocHGlobal(Size);
+                var context = (GetAddrInfoExContext*)Marshal.AllocHGlobal(sizeof(GetAddrInfoExContext));
                 *context = default;
 
                 return context;
@@ -512,7 +486,7 @@ namespace System.Net
             public static void FreeContext(GetAddrInfoExContext* context)
             {
                 if (context->Result != null)
-                    Interop.Winsock.FreeAddrInfoEx(context->Result);
+                    Interop.Winsock.FreeAddrInfoExW(context->Result);
 
                 Marshal.FreeHGlobal((IntPtr)context);
             }

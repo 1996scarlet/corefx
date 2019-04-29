@@ -10,11 +10,14 @@ using System.Net.Test.Common;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace System.Net.Http.Functional.Tests
 {
-    public abstract class HttpClientHandler_Cancellation_Test : HttpClientTestBase
+    public abstract class HttpClientHandler_Cancellation_Test : HttpClientHandlerTestBase
     {
+        public HttpClientHandler_Cancellation_Test(ITestOutputHelper output) : base(output) { }
+
         [Theory]
         [InlineData(false, CancellationMode.Token)]
         [InlineData(true, CancellationMode.Token)]
@@ -98,6 +101,7 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "Test needs to be rewritten to work on UAP due to WinRT differences")]
         [Theory]
         [MemberData(nameof(TwoBoolsAndCancellationMode))]
         public async Task GetAsync_CancelDuringResponseBodyReceived_Buffered_TaskCanceledQuickly(bool chunkedTransfer, bool connectionClose, CancellationMode mode)
@@ -287,16 +291,11 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
+        [ActiveIssue(32000)]
+        [SkipOnTargetFramework(TargetFrameworkMonikers.Uap, "WinRT stack can't set MaxConnectionsPerServer < 2")]
         [Fact]
         public async Task MaxConnectionsPerServer_WaitingConnectionsAreCancelable()
         {
-            if (IsWinHttpHandler)
-            {
-                // Issue #27064:
-                // Throws WinHttpException ("The server returned an invalid or unrecognized response")
-                // while parsing headers.
-                return;
-            }
             if (IsNetfxHandler)
             {
                 // Throws HttpRequestException wrapping a WebException for the canceled request
@@ -318,7 +317,7 @@ namespace System.Net.Http.Functional.Tests
                     Task serverTask1 = server.AcceptConnectionAsync(async connection1 =>
                     {
                         await connection1.ReadRequestHeaderAsync();
-                        await connection1.Writer.WriteAsync($"HTTP/1.1 200 OK\r\nDate: {DateTimeOffset.UtcNow:R}\r\n");
+                        await connection1.Writer.WriteAsync($"HTTP/1.1 200 OK\r\nConnection: close\r\nDate: {DateTimeOffset.UtcNow:R}\r\n");
                         serverAboutToBlock.SetResult(true);
                         await blockServerResponse.Task;
                         await connection1.Writer.WriteAsync("Content-Length: 5\r\n\r\nhello");
@@ -347,6 +346,46 @@ namespace System.Net.Http.Functional.Tests
             }
         }
 
+        [Fact]
+        public async Task SendAsync_Cancel_CancellationTokenPropagates()
+        {
+            TaskCompletionSource<bool> clientCanceled = new TaskCompletionSource<bool>();
+            await LoopbackServerFactory.CreateClientAndServerAsync(
+                async uri =>
+                {
+                    var cts = new CancellationTokenSource();
+                    cts.Cancel();
+
+                    using (HttpClient client = CreateHttpClient())
+                    {
+                        OperationCanceledException ex = null;
+                        try
+                        {
+                            await client.GetAsync(uri, cts.Token);
+                        }
+                        catch(OperationCanceledException e)
+                        {
+                            ex = e;
+                        }
+                        Assert.True(ex != null, "Expected OperationCancelledException, but no exception was thrown.");
+
+                        Assert.True(cts.Token.IsCancellationRequested, "cts token IsCancellationRequested");
+
+                        if (!PlatformDetection.IsFullFramework)
+                        {
+                            // .NET Framework has bug where it doesn't propagate token information.
+                            Assert.True(ex.CancellationToken.IsCancellationRequested, "exception token IsCancellationRequested");
+                        }
+                        clientCanceled.SetResult(true);
+                    }
+                },
+                async server =>
+                {
+                    Task serverTask = server.HandleRequestAsync();
+                    await clientCanceled.Task;
+                });
+        }
+
         private async Task ValidateClientCancellationAsync(Func<Task> clientBodyAsync)
         {
             var stopwatch = Stopwatch.StartNew();
@@ -369,7 +408,7 @@ namespace System.Net.Http.Functional.Tests
                     "Expected cancellation exception, got:" + Environment.NewLine + error);
             }
 
-            Assert.True(stopwatch.Elapsed < new TimeSpan(0, 0, 30), $"Elapsed time {stopwatch.Elapsed} should be less than 30 seconds, was {stopwatch.Elapsed.TotalSeconds}");
+            Assert.True(stopwatch.Elapsed < new TimeSpan(0, 0, 60), $"Elapsed time {stopwatch.Elapsed} should be less than 60 seconds, was {stopwatch.Elapsed.TotalSeconds}");
         }
 
         private static void Cancel(CancellationMode mode, HttpClient client, CancellationTokenSource cts)

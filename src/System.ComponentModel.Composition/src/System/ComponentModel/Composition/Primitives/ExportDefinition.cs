@@ -3,7 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
+using System.Diagnostics;
 using Microsoft.Internal;
 
 namespace System.ComponentModel.Composition.Primitives
@@ -54,7 +54,7 @@ namespace System.ComponentModel.Composition.Primitives
         /// </exception>
         public ExportDefinition(string contractName, IDictionary<string, object> metadata)
         {
-            Requires.NotNullOrEmpty(contractName, "contractName");
+            Requires.NotNullOrEmpty(contractName, nameof(contractName));
 
             _contractName = contractName;
 
@@ -84,8 +84,6 @@ namespace System.ComponentModel.Composition.Primitives
         {
             get 
             {
-                Contract.Ensures(!string.IsNullOrEmpty(Contract.Result<string>()));
-
                 if (_contractName != null)
                 {
                     return _contractName;
@@ -119,7 +117,7 @@ namespace System.ComponentModel.Composition.Primitives
         {
             get 
             {
-                Contract.Ensures(Contract.Result<IDictionary<string, object>>() != null);
+                Debug.Assert(_metadata != null);
 
                 return _metadata; 
             }
